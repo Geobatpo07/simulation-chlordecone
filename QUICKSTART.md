@@ -209,5 +209,7 @@ ggsave("figure.pdf", width = 10, height = 6, dpi = 300)
 - Documentation: See [README.md](README.md)
 
 Version: 1.0
+
 Date: January 2026
+
 Author: Geovany LAGUERRE
