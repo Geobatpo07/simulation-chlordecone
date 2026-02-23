@@ -18,7 +18,7 @@ if(length(manquants) > 0) {
   install.packages(manquants, repos = "https://cloud.r-project.org/")
 }
 
-cat("✓ Tous les packages sont disponibles\n\n")
+cat("Tous les packages sont disponibles\n\n")
 
 # Charger shiny
 library(shiny)
