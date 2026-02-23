@@ -7,7 +7,7 @@
 [![Research Code](https://img.shields.io/badge/type-Research%20Code-orange.svg)]()
 [![DOI](https://img.shields.io/badge/DOI-10.13140%2FRG.2.2.36238.01607-blue.svg)](https://doi.org/10.13140/RG.2.2.36238.01607)
 [![Quick Start Guide](https://img.shields.io/badge/Documentation-Quick%20Start-5D3FD3?style=for-the-badge&logo=readthedocs&logoColor=white)](QUICKSTART.md)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)]()
+[![License: CC0 1.0](https://img.shields.io/badge/license-CC0%201.0-lightgrey.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
 
 ---
 
@@ -367,7 +367,12 @@ Geovany Batista Polo Laguerre
 
 ## License
 
-CC0 1.0 Universal License
+This project is released under the **Creative Commons CC0 1.0 Universal License**.
+
+You may copy, modify, distribute and perform the work, even for commercial purposes, all without asking permission.
+
+Full legal text:
+https://creativecommons.org/publicdomain/zero/1.0/
 
 ---
 
