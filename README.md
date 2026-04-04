@@ -215,10 +215,10 @@ $$
 
 Discrete exposure levels:
 
-1. Null burden (B < 0.2 $\mu$g/L)
-2. Low burden (0.2–0.5 $\mu$g/L)
-3. Moderate burden (0.5–1.0 $\mu$g/L)
-4. High burden (≥ 1.0 $\mu$g/L)
+1. Null burden (B < 0.2 $\mu g/L$)
+2. Low burden (0.2–0.5 $\mu g/L$)
+3. Moderate burden (0.5–1.0 $\mu g/L$)
+4. High burden (≥ 1.0 $\mu g/L$)
 
 #### Features
 - Progression via exposure ($\beta_i\cdot F$)
@@ -238,7 +238,7 @@ Simulates exposure reduction strategies:
 
 - Hydraulic engineering (reduce $r_0$)
 - Dietary awareness (reduce $\beta$)
-- Gradual implementation via sigmoid $\Phi(t)$
+- Gradual implementation via sigmoid $\phi(t)$
 
 #### Outputs
 - Before/after comparison
