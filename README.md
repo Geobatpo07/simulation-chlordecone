@@ -151,22 +151,22 @@ source("launch_app.R")
 ### Base Compartmental Model
 
 #### Structure
-- Agricultural parcels (C)
-- Aquatic environment (E)
-- Food resource (F)
-- Low burden population (H_S)
-- High burden population (H_I)
-- Rainfall forcing (R)
+- Agricultural parcels ($C$)
+- Aquatic environment ($E$)
+- Food resource ($F$)
+- Low burden population ($H_S$)
+- High burden population ($H_I$)
+- Rainfall forcing ($R$)
 
 #### Adjustable Parameters
 - Number of parcels
 - Initial stocks
-- Degradation rates (δ)
-- Runoff rate (r₀)
-- Rainfall amplification (α)
-- Environmental transfers (μ_E, κ, μ_F)
-- Exposure rate (β)
-- Depuration rate (ρ)
+- Degradation rates ($\delta$)
+- Runoff rate ($r_0$)
+- Rainfall amplification ($\alpha$)
+- Environmental transfers ($\mu_E$, $\kappa$, $\mu_F$)
+- Exposure rate ($\beta$)
+- Depuration rate ($\rho$)
 
 #### Outputs
 - Environmental contamination curves
@@ -185,10 +185,10 @@ $$
 $$
 
 #### Additional Parameters
-- γ : absorption coefficient
-- μ_B : elimination rate
-- B* : exposure threshold
-- k : sigmoid steepness
+- $\gamma$ : absorption coefficient
+- $\mu_B$ : elimination rate
+- $B^*$ : exposure threshold
+- $k$ : sigmoid steepness
 
 #### Advantages
 - Direct link with biomonitoring data
@@ -201,7 +201,7 @@ $$
 
 - Multiple interconnected watersheds
 - Parcel allocation to basins
-- Inter-basin transfer (w)
+- Inter-basin transfer ($w$)
 - Basin-specific food resources
 
 #### Applications
@@ -215,14 +215,14 @@ $$
 
 Discrete exposure levels:
 
-1. Null burden (B < 0.2 µg/L)
-2. Low burden (0.2–0.5 µg/L)
-3. Moderate burden (0.5–1.0 µg/L)
-4. High burden (≥ 1.0 µg/L)
+1. Null burden (B < 0.2 $\mu$g/L)
+2. Low burden (0.2–0.5 $\mu$g/L)
+3. Moderate burden (0.5–1.0 $\mu$g/L)
+4. High burden (≥ 1.0 $\mu$g/L)
 
 #### Features
-- Progression via exposure (β_i·F)
-- Regression via depuration (ρ_i)
+- Progression via exposure ($\beta_i\cdot F$)
+- Regression via depuration ($\rho_i$)
 - Population distribution across classes
 
 #### Benefits
@@ -236,9 +236,9 @@ Discrete exposure levels:
 
 Simulates exposure reduction strategies:
 
-- Hydraulic engineering (reduce r₀)
-- Dietary awareness (reduce β)
-- Gradual implementation via sigmoid φ(t)
+- Hydraulic engineering (reduce $r_0$)
+- Dietary awareness (reduce $\beta$)
+- Gradual implementation via sigmoid $\Phi(t)$
 
 #### Outputs
 - Before/after comparison
@@ -270,14 +270,14 @@ Simulates exposure reduction strategies:
 
 | Parameter | Symbol | Default | Unit |
 |-----------|--------|---------|------|
-| Soil degradation | δ | 0.001 | day⁻¹ |
-| Runoff | r₀ | 0.01 | day⁻¹ |
-| Rain amplification | α | 0.8 | - |
-| Env elimination | μ_E | 0.05 | day⁻¹ |
-| Transfer E→F | κ | 0.03 | day⁻¹ |
-| Resource renewal | μ_F | 0.02 | day⁻¹ |
-| Exposure rate | β | 0.001 | day⁻¹·kg⁻¹ |
-| Depuration | ρ | 0.005 | day⁻¹ |
+| Soil degradation | $\delta$ | 0.001 | day⁻¹ |
+| Runoff | $r_0$ | 0.01 | day⁻¹ |
+| Rain amplification | $\alpha$ | 0.8 | - |
+| Env elimination | $\mu_E$ | 0.05 | day⁻¹ |
+| Transfer E→F | $\kappa$ | 0.03 | day⁻¹ |
+| Resource renewal | $\mu_F$ | 0.02 | day⁻¹ |
+| Exposure rate | $\beta$ | 0.001 | day⁻¹·kg⁻¹ |
+| Depuration | $\rho$ | 0.005 | day⁻¹ |
 
 *Values are indicative. Empirical calibration required.*
 
