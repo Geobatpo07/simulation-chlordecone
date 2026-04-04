@@ -47,15 +47,15 @@ The platform allows users to simulate environmental contamination dynamics, huma
 
 The core system is defined as:
 
-\[
+$$
 \frac{dy}{dt} = f(t,y)
-\]
+$$
 
 with periodic rainfall forcing:
 
-\[
+$$
 R(t) = R_{\text{moy}}\left(1 + A \sin\left(\frac{2\pi t}{T}\right)\right)
-\]
+$$
 
 The model integrates:
 
@@ -180,9 +180,9 @@ source("launch_app.R")
 
 Adds a physiological biomarker:
 
-\[
+$$
 \frac{dB}{dt} = \gamma \frac{F}{H} - \mu_B B
-\]
+$$
 
 #### Additional Parameters
 - γ : absorption coefficient
