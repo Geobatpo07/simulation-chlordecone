@@ -238,7 +238,7 @@ Simulates exposure reduction strategies:
 
 - Hydraulic engineering (reduce $r_0$)
 - Dietary awareness (reduce $\beta$)
-- Gradual implementation via sigmoid $\phi(t)$
+- Gradual implementation via sigmoid $\varphi(t)$
 
 #### Outputs
 - Before/after comparison
