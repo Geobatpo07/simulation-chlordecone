@@ -225,8 +225,8 @@ ggsave("figure.pdf", width = 10, height = 6, dpi = 300)
 - Bug reports: Open a GitHub issue
 - Documentation: See [README.md](README.md)
 
-Version: 1.0
+Version: 1.1
 
-Date: January 2026
+Date: October 2026
 
 Author: Geovany LAGUERRE

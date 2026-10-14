@@ -1,6 +1,6 @@
 # Application Shiny - Modélisation de l'exposition humaine au chlordécone
 # Auteur: Geovany Batista Polo Laguerre
-# Date: 2026-01-23
+# Date: 2026-01-23 (version 1.0) ; version 1.1 : 2026-10-14
 #
 # Les modèles ODE, la simulation et les graphiques sont dans le dossier R/
 # (chargé automatiquement par Shiny) : models.R, plots.R, simulation.R.
@@ -79,7 +79,8 @@ ui <- dashboardPage(
               tags$li(tags$b("Variable de charge B(t) :"), "Extension avec biomarqueur sanguin de charge corporelle"),
               tags$li(tags$b("Spatialisation :"), "Modèle multi-bassins versants avec réseau hydrographique"),
               tags$li(tags$b("Chaîne de Markov :"), "Discrétisation de la charge en 4 classes avec transitions stochastiques"),
-              tags$li(tags$b("Intervention :"), "Simulation de politiques publiques (réduction progressive de l'exposition)")
+              tags$li(tags$b("Intervention :"), "Simulation de politiques publiques (réduction progressive de l'exposition), comparée à un scénario sans intervention"),
+              tags$li(tags$b("Sensibilité :"), "Effet de 9 paramètres sur la prévalence et la ressource (analyse locale et indices de Sobol)")
             ),
             br(),
             h3("Instructions"),
@@ -477,7 +478,7 @@ ui <- dashboardPage(
               tags$a(href = "mailto:lgeobatpo98@gmail.com", "lgeobatpo98@gmail.com")),
             br(),
             
-            p(em("Version 1.0 — Janvier 2026"), style = "color: #666; font-size: 13px;")
+            p(em("Version 1.1 — Octobre 2026"), style = "color: #666; font-size: 13px;")
           )
         )
       )

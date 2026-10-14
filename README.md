@@ -23,7 +23,7 @@
 | Focus | Seasonal forcing & periodic stability |
 | Associated Preprint | https://doi.org/10.13140/RG.2.2.36238.01607 |
 | Status | Research Prototype |
-| Version | 1.0 |
+| Version | 1.1 |
 
 ---
 
@@ -441,14 +441,32 @@ Required repository secrets (Settings → Secrets and variables → Actions): `S
 
 ## Version History
 
-### Unreleased
-- Fidelity to the preprint: Markov $\rho_i$ as free parameters, 7 parcels, intervention starting from an initial prevalence of 20 %, $\gamma$ tied to the scenario
-- Fix model comparison (prevalence computed from the wrong columns)
-- Fix inter-basin transfer in the spatial model (mass was lost)
-- Demographic equilibrium: $\Lambda_H = H_0 d_H$
-- $B(t)$ follows the preprint form with explicit $k_{trans}$
-- Environmental scenario selector (preprint / long persistence)
-- Intervention: reference scenario without intervention and $\mu_F$ action
+### v1.1 (2026-10-14)
+
+**Corrections**
+- Model comparison: the prevalence was computed from the wrong columns (columns are now named, no positional indexing).
+- Spatial model: the inter-basin transfer was overwritten and mass was lost.
+- Demographic equilibrium $\Lambda_H = H_0 d_H$ (the population no longer drifts towards 255,500).
+
+**Fidelity to the preprint** (details in [docs/corrections_math.md](docs/corrections_math.md))
+- $B(t)$ follows the preprint form $\gamma F/H - \mu_B B$, with an explicit relaxation speed $k_{trans}$ towards $H\,p(B)$.
+- Markov $\rho_i$ as free parameters; up to 7 parcels.
+- Intervention: reference scenario without intervention, action on $\mu_F$, initial prevalence of 20 %, relative reduction at 5 years.
+- Environmental scenarios: preprint (soil half-life of 59 days) and long persistence (20 years).
+
+**New**
+- Sensitivity analysis of the base model (one at a time and Sobol): tab, parallel script, results in [docs/sensibilite.md](docs/sensibilite.md).
+
+**Engineering**
+- Code split into `app/R/` (models, simulation, plots, sensitivity).
+- Tests: `tests/smoke.R`, `tests/test_simulation.R`, `tests/test_sensibilite.R`.
+- CI/CD (GitHub Actions): tests, then deployment to shinyapps.io; `renv.lock` updated.
+- Launch scripts: `run.R` works from any folder, `launch.bat` and `launch.sh`; `launch_app.R` removed (duplicate of `run.R`).
+- The unused DT dependency is removed.
+
+**Documentation**
+- Flaws of the preprint: [docs/dette.md](docs/dette.md).
+- README and QUICKSTART updated.
 
 ### v1.0 (2026-01-22)
 - Initial implementation
