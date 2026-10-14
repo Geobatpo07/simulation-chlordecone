@@ -183,3 +183,48 @@ plot_comparaison <- function(df) {
     scale_color_manual(values = c("Base" = "darkred", "Charge" = "purple", "Markov" = "darkblue")) +
     theme_chlordecone(base_size = 15)
 }
+
+# -----------------------------------------------------------------------------
+# Sensibilité
+# -----------------------------------------------------------------------------
+
+# Diagramme en tornade (OAT) : valeur de la sortie quand chaque paramètre est multiplié par 0,5 puis 2
+plot_tornado <- function(df_oat, sortie, etiquettes) {
+  d <- df_oat[df_oat$sortie == sortie, ]
+  d$label <- etiquettes[d$parametre]
+  d$amplitude <- abs(d$y_haut - d$y_bas)
+  d$label <- factor(d$label, levels = d$label[order(d$amplitude)])
+  y_ref <- d$y_ref[1]
+
+  ggplot(d) +
+    geom_segment(aes(x = label, xend = label, y = y_ref, yend = y_bas, color = "Paramètre × 0,5"), linewidth = 6) +
+    geom_segment(aes(x = label, xend = label, y = y_ref, yend = y_haut, color = "Paramètre × 2"), linewidth = 6) +
+    geom_hline(yintercept = y_ref, linetype = "dashed") +
+    coord_flip() +
+    scale_color_manual(values = c("Paramètre × 0,5" = "steelblue", "Paramètre × 2" = "darkorange")) +
+    labs(x = NULL, y = SORTIES_SENSIBILITE[[sortie]], title = "Analyse locale (un paramètre à la fois)",
+         subtitle = sprintf("Valeur de référence : %.3g (ligne pointillée)", y_ref)) +
+    theme_chlordecone()
+}
+
+# Indices de Sobol : premier ordre (S1) et total (ST) avec intervalles de confiance bootstrap à 95 %
+plot_sobol <- function(df_sobol, sortie, etiquettes) {
+  d <- df_sobol[df_sobol$sortie == sortie, ]
+  if (all(is.na(d$ST))) {
+    return(ggplot() + annotate("text", x = 0, y = 0, label = "Sortie constante : indices non définis") + theme_void())
+  }
+  d$label <- etiquettes[d$parametre]
+  d$label <- factor(d$label, levels = d$label[order(d$ST)])
+  long <- rbind(
+    data.frame(label = d$label, Indice = "Premier ordre (S1)", valeur = d$S1, inf = d$S1_inf, sup = d$S1_sup),
+    data.frame(label = d$label, Indice = "Total (ST)", valeur = d$ST, inf = d$ST_inf, sup = d$ST_sup)
+  )
+  ggplot(long, aes(x = label, y = valeur, fill = Indice)) +
+    geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+    geom_errorbar(aes(ymin = inf, ymax = sup), position = position_dodge(width = 0.8), width = 0.25) +
+    coord_flip() +
+    scale_fill_manual(values = c("Premier ordre (S1)" = "steelblue", "Total (ST)" = "darkorange")) +
+    labs(x = NULL, y = "Part de la variance de la sortie", title = "Analyse globale (indices de Sobol)",
+         subtitle = SORTIES_SENSIBILITE[[sortie]]) +
+    theme_chlordecone()
+}

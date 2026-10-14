@@ -256,6 +256,21 @@ Simulates exposure reduction strategies:
 
 ---
 
+### Sensitivity Analysis
+
+Effect of 9 parameters ($\delta$, $r_0$, $\alpha$, $\mu_E$, $\kappa$, $\mu_F$, $\beta$, $\rho$, $F_{max}$) of the base model on three outputs: maximum prevalence, prevalence at 5 years and peak of the food resource $F$.
+
+- **Local (one at a time)**: each parameter is multiplied by 0.5 then 2 (tornado diagram) and the elasticity is computed at $\pm 10\ \%$.
+- **Global (Sobol)**: the 9 parameters vary together between half and double of their reference value (log-uniform); first-order ($S_1$) and total ($S_T$) indices with 95 % bootstrap intervals.
+
+The reference values follow the selected environmental scenario. Results and interpretation: [docs/sensibilite.md](docs/sensibilite.md). For large samples, use the parallel script:
+
+```bash
+Rscript scripts/sensibilite.R preprint,persist 1024 20 20 8   # scenarios, N, years, initial prevalence (%), cores
+```
+
+---
+
 ### Model Comparison
 
 - Common parameter framework
@@ -302,10 +317,14 @@ simulation-chlordecone/
 │   └── R/              # Loaded automatically by Shiny
 │       ├── models.R        # ODE models (no Shiny dependency)
 │       ├── simulation.R    # Parameters, solver, prevalence, comparison, intervention
+│       ├── sensibilite.R   # Sensitivity analysis (one-at-a-time and Sobol)
 │       └── plots.R         # ggplot2 figures
+├── scripts/
+│   └── sensibilite.R       # Parallel sensitivity analysis, writes CSV files in results/
 ├── tests/
 │   ├── smoke.R             # Models: finite solutions, demography, mass conservation
-│   └── test_simulation.R   # Column names, prevalence, comparison, intervention
+│   ├── test_simulation.R   # Column names, prevalence, comparison, intervention
+│   └── test_sensibilite.R  # Sobol estimator validated on the Ishigami function, elasticities
 ├── docs/
 │   ├── dette.md             # Flaws of the preprint, to correct in a later version
 │   └── corrections_math.md  # Mathematical corrections applied in the code
@@ -356,7 +375,7 @@ This platform illustrates:
 ## Future Extensions
 
 - Bayesian calibration
-- Global sensitivity analysis (Sobol)
+- Sensitivity analysis of the other models (the base model is done: see [docs/sensibilite.md](docs/sensibilite.md))
 - GIS coupling
 - Optimal control module
 - Stochastic extensions

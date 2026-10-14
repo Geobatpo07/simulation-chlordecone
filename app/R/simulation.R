@@ -42,9 +42,10 @@ noms_colonnes <- function(modele = c("base", "charge", "spatial", "markov", "int
   c("time", noms)
 }
 
-# Résout le système sur `annees` années (pas d'un jour) et renvoie un data.frame nommé.
-resoudre_edo <- function(func, y0, params, annees, modele, n_bassins = NULL) {
-  times <- seq(0, annees * 365, by = 1)
+# Résout le système sur `annees` années et renvoie un data.frame nommé.
+# `pas_jours` : pas des sorties (1 jour par défaut ; un pas plus grand accélère fortement la résolution).
+resoudre_edo <- function(func, y0, params, annees, modele, n_bassins = NULL, pas_jours = 1) {
+  times <- seq(0, annees * 365, by = pas_jours)
   solution <- deSolve::ode(y = y0, times = times, func = func, parms = params)
   df <- as.data.frame(solution)
   colnames(df) <- noms_colonnes(modele, params$n_parcelles, n_bassins)

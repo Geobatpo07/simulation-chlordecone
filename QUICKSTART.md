@@ -49,6 +49,8 @@ Option C: From a terminal, `Rscript app/run.R` (repository root), double-click `
 
 * Comparison – Multi-model comparison
 
+* Sensitivity – One-at-a-time and Sobol sensitivity analysis of the base model
+
 * About – Information and references
 
 ## Example Usage: Base Model
@@ -202,11 +204,14 @@ Rscript tests/test_simulation.R
 - Optimize (optim, GA, DEoptim)
 
 ## Sensitivity Analysis
-```r
-library(sensitivity)
+
+Use the **Sensitivity** tab (local analysis in about 5 s, global Sobol analysis in a few minutes for N = 64). For larger samples, run the parallel script from the repository root:
+
+```bash
+Rscript scripts/sensibilite.R preprint,persist 1024 20 20 8
 ```
 
-Apply Morris or Sobol methods.
+Results and interpretation: [docs/sensibilite.md](docs/sensibilite.md).
 
 ## Export for Publications
 

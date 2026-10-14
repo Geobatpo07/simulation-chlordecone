@@ -33,6 +33,7 @@ ui <- dashboardPage(
       menuItem("Chaîne de Markov", tabName = "markov", icon = icon("random")),
       menuItem("Intervention", tabName = "intervention", icon = icon("medkit")),
       menuItem("Comparaison", tabName = "comparaison", icon = icon("balance-scale")),
+      menuItem("Sensibilité", tabName = "sensibilite", icon = icon("sliders-h")),
       menuItem("À propos", tabName = "about", icon = icon("info-circle"))
     ),
     hr(),
@@ -340,6 +341,48 @@ ui <- dashboardPage(
       ),
       
       # -----------------------------------------------------------------------
+      # ONGLET SENSIBILITÉ
+      # -----------------------------------------------------------------------
+      tabItem(
+        tabName = "sensibilite",
+        fluidRow(
+          box(
+            width = 4,
+            title = "Analyse de sensibilité (modèle de base)",
+            status = "warning",
+            solidHeader = TRUE,
+            p("Effet de 9 paramètres (δ, r0, α, µ_E, κ, µ_F, β, ρ, F_max) sur trois sorties.",
+              "Les valeurs de référence suivent le scénario environnemental choisi dans la barre latérale."),
+            sliderInput("sens_duree", "Horizon (années)", 5, 30, 20, step = 5),
+            sliderInput("sens_prev0", "Prévalence initiale H_I/H (%)", 0, 50, 20, step = 1),
+            selectInput("sens_sortie", "Sortie affichée",
+                        choices = setNames(names(SORTIES_SENSIBILITE), SORTIES_SENSIBILITE)),
+            h4("Analyse locale (OAT)"),
+            p("Chaque paramètre est multiplié par 0,5 puis par 2 ; élasticité à ±10 %. Environ 5 s."),
+            actionButton("sens_oat", "Lancer l'analyse locale", icon = icon("play"), class = "btn-warning"),
+            br(), br(),
+            h4("Analyse globale (Sobol)"),
+            p("Les 9 paramètres varient ensemble entre la moitié et le double de leur référence (tirage log-uniforme)."),
+            sliderInput("sens_N", "Taille d'échantillon N", 32, 512, 64, step = 32),
+            uiOutput("sens_duree_estimee"),
+            actionButton("sens_sobol", "Lancer l'analyse globale", icon = icon("play"), class = "btn-warning"),
+            br(), br(),
+            downloadButton("sens_download_oat", "Résultats locaux (CSV)"),
+            downloadButton("sens_download_sobol", "Résultats globaux (CSV)")
+          ),
+          tabBox(
+            width = 8,
+            tabPanel("Locale (OAT)",
+                     plotOutput("sens_oat_plot", height = "420px"),
+                     tableOutput("sens_oat_table")),
+            tabPanel("Globale (Sobol)",
+                     plotOutput("sens_sobol_plot", height = "420px"),
+                     tableOutput("sens_sobol_table"))
+          )
+        )
+      ),
+
+      # -----------------------------------------------------------------------
       # ONGLET À PROPOS
       # -----------------------------------------------------------------------
       tabItem(
@@ -642,6 +685,79 @@ server <- function(input, output, session) {
     req(comp_results())
     plot_comparaison(comp_results())
   })
+
+  # ---------------------------------------------------------------------------
+  # SENSIBILITÉ
+  # ---------------------------------------------------------------------------
+
+  sens_ref <- reactive({
+    pars <- parametres_sensibilite(input$scenario_env)
+    setNames(pars$ref, pars$nom)
+  })
+  sens_etiquettes <- reactive({
+    pars <- parametres_sensibilite(input$scenario_env)
+    setNames(pars$label, pars$nom)
+  })
+  sens_fonction <- function() {
+    annees <- input$sens_duree
+    prev0 <- input$sens_prev0 / 100
+    function(valeurs) sorties_modele(valeurs, annees = annees, prev0 = prev0)
+  }
+
+  output$sens_duree_estimee <- renderUI({
+    n_sim <- input$sens_N * (length(sens_ref()) + 2)
+    secondes <- n_sim * 0.12
+    helpText(sprintf("%d simulations, environ %s.", n_sim,
+                     if (secondes < 90) sprintf("%.0f s", secondes) else sprintf("%.1f min", secondes / 60)))
+  })
+
+  sens_oat_results <- eventReactive(input$sens_oat, {
+    f <- sens_fonction()
+    ref <- sens_ref()
+    withProgress(message = "Analyse locale...", value = 0, {
+      analyse_oat(f, ref, progression = function(fait, total) setProgress(fait / total))
+    })
+  })
+
+  sens_sobol_results <- eventReactive(input$sens_sobol, {
+    f <- sens_fonction()
+    ref <- sens_ref()
+    withProgress(message = "Analyse globale (Sobol)...", value = 0, {
+      sobol_modele(ref, f, N = input$sens_N, progression = function(fait, total) setProgress(fait / total))
+    })
+  })
+
+  output$sens_oat_plot <- renderPlot({
+    req(sens_oat_results())
+    plot_tornado(sens_oat_results(), input$sens_sortie, sens_etiquettes())
+  })
+
+  output$sens_oat_table <- renderTable({
+    d <- sens_oat_results()
+    d <- d[d$sortie == input$sens_sortie, ]
+    data.frame(`Paramètre` = unname(sens_etiquettes()[d$parametre]), `Valeur × 0,5` = d$y_bas,
+               `Valeur × 2` = d$y_haut, `Élasticité` = d$elasticite, check.names = FALSE)
+  }, digits = 3)
+
+  output$sens_sobol_plot <- renderPlot({
+    req(sens_sobol_results())
+    plot_sobol(sens_sobol_results(), input$sens_sortie, sens_etiquettes())
+  })
+
+  output$sens_sobol_table <- renderTable({
+    d <- sens_sobol_results()
+    d <- d[d$sortie == input$sens_sortie, ]
+    data.frame(`Paramètre` = unname(sens_etiquettes()[d$parametre]), S1 = d$S1, ST = d$ST, check.names = FALSE)
+  }, digits = 3)
+
+  output$sens_download_oat <- downloadHandler(
+    filename = function() nom_export("sensibilite_oat"),
+    content = function(file) write.csv(sens_oat_results(), file, row.names = FALSE)
+  )
+  output$sens_download_sobol <- downloadHandler(
+    filename = function() nom_export("sensibilite_sobol"),
+    content = function(file) write.csv(sens_sobol_results(), file, row.names = FALSE)
+  )
 }
 
 # =============================================================================

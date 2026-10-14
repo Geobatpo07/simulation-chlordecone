@@ -98,7 +98,7 @@ $$
 - **« $+10\ \%$ sur $\delta$ réduit la demi-vie de $10\ \%$ » (§8.1.1)** : la demi-vie vaut $\dfrac{\ln 2}{\delta}$, donc elle baisse de $\dfrac{1}{1{,}1} - 1 = -9{,}1\ \%$. Et si le taux effectif est $\delta + r^0 g$, l'effet est encore plus faible.
 - **« $\beta$ $-30\ \%$ réduit proportionnellement les nouveaux cas » (§8.1.4)** : $\lambda$ baisse bien de $30\ \%$, mais le flux de nouveaux cas $\lambda H_s$ n'est proportionnel à $\beta$ qu'à l'instant initial. $H_s$ évolue ensuite (retour par $\rho$, déplétion). À préciser.
 - **« $\kappa$ $-50\ \%$ réduit significativement $F$ » (§8.1.3)** : $F$ n'est pas proportionnel à $\kappa$ ($\kappa$ intervient aussi dans la perte $-\kappa E$ de $E$). L'effet est à calculer, pas à affirmer.
-- Aucune de ces « sensibilités » n'est calculée (pas d'analyse de sensibilité locale ou globale).
+- Aucune de ces « sensibilités » n'est calculée dans le preprint (pas d'analyse de sensibilité locale ou globale). Elles sont maintenant calculées dans [sensibilite.md](sensibilite.md) (avec des valeurs illustratives) : $\delta$ et $\alpha$ ne sont pas retrouvés comme paramètres clés, $\beta$ n'est pas proportionnel, $\kappa$ est confirmé pour $F$.
 
 ### 🟠 2.4 Prédiction du §8.2.1 non démontrée
 

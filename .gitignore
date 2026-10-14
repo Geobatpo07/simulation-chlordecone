@@ -51,3 +51,6 @@ rsconnect/
 
 # vs code
 .vscode/
+
+# Résultats générés (scripts/sensibilite.R)
+results/

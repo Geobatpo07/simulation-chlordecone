@@ -47,6 +47,9 @@ jobs:
       - name: Tests de la couche simulation
         run: Rscript tests/test_simulation.R
 
+      - name: Tests de l'analyse de sensibilité
+        run: Rscript tests/test_sensibilite.R
+
   deploy:
     needs: test
     # Pas de déploiement depuis les pull requests
