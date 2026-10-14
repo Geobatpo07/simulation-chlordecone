@@ -118,10 +118,10 @@ modele_spatialise <- function(t, y, params) {
       # Flux depuis les parcelles du bassin j
       parcelles_bassin <- which(parcelles_to_bassin == j)
       flux_entrant <- sum(r0[parcelles_bassin] * g_R * C[parcelles_bassin])
-      
-      # Pertes et transferts inter-bassins
-      dE[j] <- flux_entrant - mu_E * E[j] - kappa * E[j]
-      
+
+      # Apports et pertes locales (accumulés, sans écraser les transferts)
+      dE[j] <- dE[j] + flux_entrant - mu_E * E[j] - kappa * E[j]
+
       # Transfert vers bassin aval (simplifié: bassin j -> bassin j+1)
       if (j < n_bassins) {
         dE[j] <- dE[j] - w_transfer * E[j]
@@ -1234,8 +1234,9 @@ server <- function(input, output, session) {
     
     sol_base <- ode(y = y0_base, times = times, func = modele_base, parms = params_base)
     df_base <- as.data.frame(sol_base)
+    colnames(df_base) <- c("time", paste0("C", 1:3), "E", "F", "H_S", "H_I")
     df_base$model <- "Base"
-    df_base$prevalence <- df_base[, 7] / (df_base[, 6] + df_base[, 7]) * 100
+    df_base$prevalence <- df_base$H_I / (df_base$H_S + df_base$H_I) * 100
     
     # 2. Modèle avec charge
     params_charge <- c(params_base, list(gamma_B = 0.01, mu_B = 0.005, B_star = 1, k_sigmoid = 5))
@@ -1243,8 +1244,9 @@ server <- function(input, output, session) {
     
     sol_charge <- ode(y = y0_charge, times = times, func = modele_avec_charge, parms = params_charge)
     df_charge <- as.data.frame(sol_charge)
+    colnames(df_charge) <- c("time", paste0("C", 1:3), "E", "F", "H_S", "H_I", "B")
     df_charge$model <- "Charge B(t)"
-    df_charge$prevalence <- df_charge[, 7] / (df_charge[, 6] + df_charge[, 7]) * 100
+    df_charge$prevalence <- df_charge$H_I / (df_charge$H_S + df_charge$H_I) * 100
     
     # 3. Modèle Markov (somme H3 + H4 comme "exposés")
     params_markov <- c(params_base, list(beta_1 = 0.0005, beta_2 = 0.0007, beta_3 = 0.001))
@@ -1252,9 +1254,10 @@ server <- function(input, output, session) {
     
     sol_markov <- ode(y = y0_markov, times = times, func = modele_markov, parms = params_markov)
     df_markov <- as.data.frame(sol_markov)
+    colnames(df_markov) <- c("time", paste0("C", 1:3), "E", "F", "H1", "H2", "H3", "H4")
     df_markov$model <- "Markov"
-    df_markov$prevalence <- (df_markov[, 8] + df_markov[, 9]) / 
-      (df_markov[, 6] + df_markov[, 7] + df_markov[, 8] + df_markov[, 9]) * 100
+    df_markov$prevalence <- (df_markov$H3 + df_markov$H4) /
+      (df_markov$H1 + df_markov$H2 + df_markov$H3 + df_markov$H4) * 100
     
     # Compilation
     comparison <- data.frame(
