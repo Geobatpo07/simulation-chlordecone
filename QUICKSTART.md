@@ -6,15 +6,17 @@
 
 ### Step 1: Open RStudio
 
-Double-click the file app.R to open it in RStudio.
+Open the repository folder, then open the file `app/app.R`.
 
 ### Step 2: Install Dependencies (First Time Only)
 
-In the R console, run:
+In the R console (working directory = repository root), run:
 
 ```r
-source("run.R")
+source("app/run.R")
 ```
+
+This installs the missing packages and starts the application. To get the exact versions of the project, use `renv::restore()` instead.
 
 OR install manually:
 
@@ -26,18 +28,19 @@ install.packages(c("shiny", "shinydashboard", "deSolve",
 
 Option A: Click the “Run App” button in the top-right corner of RStudio.
 
-Option B: In the R console:
+Option B: In the R console (repository root):
 
 ```r
-shiny::runApp()
-shiny::runApp()
+shiny::runApp("app")
 ```
+
+Option C: From a terminal, `Rscript app/run.R` (repository root), double-click `app\launch.bat` on Windows, or run `./app/launch.sh` on Linux/macOS.
 
 ## Application Navigation
 
 ### Main Menu (Left Sidebar)
 * Home – Overview and instructions
-* Base Model (6 compartments)
+* Base Model (parcels, environment, food resource, two population classes)
 * Body Burden Variable B(t) – Extension with biomarker
 * Spatialization – Multi-watershed model
 * Markov Chain – 4 exposure classes
@@ -87,11 +90,15 @@ Click “Download Results” to export a CSV file.
 
 ### Scenario 3: Intervention Efficiency
 
-- Go to the “Intervention” tab
-- Set t₀ = 5 years
-- Reduce r₀ by 40%
-- Reduce β by 40%
-- Compare prevalence before and after
+- Select **Long persistence** in the sidebar (“Environmental scenario”): with the default **Preprint** scenario the contamination disappears within a few years, so an intervention has little to act on
+- Go to the “Intervention” tab (initial prevalence 20 %, start at t₀ = 0, reductions of 40 % on r₀ and β)
+- Compare the curves with and without intervention; the subtitle gives the relative reduction after 5 years
+- Optionally increase the resource turnover µF
+
+### Scenario 3b: Environmental Scenarios
+
+- Compare **Preprint** (δ = 0.001, r₀ = 0.01: soil emptied within months) and **Long persistence** (δ = 5·10⁻⁵, r₀ = 4·10⁻⁵: half-life of about 15 years)
+- The selector sets δ, r₀ and γ in every tab
 
 ### Scenario 4: Model Comparison
 
@@ -148,39 +155,44 @@ Click “Download Results” to export a CSV file.
 
 ### Advanced Customization
 
+The code is split in three parts:
+
+| File | Role |
+|------|------|
+| `app/app.R` | Interface and server (initial conditions are in the `*_results` reactives) |
+| `app/R/models.R` | ODE models |
+| `app/R/simulation.R` | Default parameters (`params_defaut`), solver, prevalence |
+| `app/R/plots.R` | ggplot2 figures |
+
 #### Modify Initial Conditions
 
+In `app/app.R`, in the relevant `*_results` reactive:
+
 ```r
-C0 <- rep(input$base_C0, input$base_n_parcelles)
-E0 <- 50
-F0 <- 10
+y0 <- c(rep(input$base_C0, n), 50, 10, input$base_H0 * 0.98, input$base_H0 * 0.02)
+#                               E0  F0
 ```
 
 #### Add New Plots
 
-Use ggplot2 inside the output$..._plot section.
+Add a `ggplot` to the list returned by the relevant `plots_*` function in `app/R/plots.R`.
 
+#### Change Forcing Period
 
-- Edit in app.R:
-```r
-C0 <- rep(input$base_C0, input$base_n_parcelles)
-E0 <- 50
-F0 <- 10
-```
-
-- Add New Plots
-
-Use ggplot2 inside the `output$..._plot` section.
-
-Change Forcing Period
-
-Modify:
+In `app/R/simulation.R`, in `params_defaut`:
 
 ```r
-T_periode <- 365
+T_periode = 365
 ```
 
 to simulate different cycles.
+
+#### Run the Tests
+
+```bash
+Rscript tests/smoke.R
+Rscript tests/test_simulation.R
+```
 
 ## Going Further
 

@@ -74,7 +74,7 @@ ui <- dashboardPage(
             br(),
             h3("Modèles disponibles"),
             tags$ul(
-              tags$li(tags$b("Modèle de base :"), "Modèle compartimental à 6 compartiments (parcelles, environnement, ressource, populations)"),
+              tags$li(tags$b("Modèle de base :"), "Modèle compartimental à 6 types de compartiments (parcelles, environnement, ressource, deux classes de population, forçage pluviométrique)"),
               tags$li(tags$b("Variable de charge B(t) :"), "Extension avec biomarqueur sanguin de charge corporelle"),
               tags$li(tags$b("Spatialisation :"), "Modèle multi-bassins versants avec réseau hydrographique"),
               tags$li(tags$b("Chaîne de Markov :"), "Discrétisation de la charge en 4 classes avec transitions stochastiques"),
@@ -89,7 +89,7 @@ ui <- dashboardPage(
           )
         ),
         fluidRow(
-          valueBox(6, "Compartiments", icon = icon("cubes"), color = "aqua", width = 3),
+          valueBox(6, "Types de compartiments", icon = icon("cubes"), color = "aqua", width = 3),
           valueBox("20 ans", "Horizon", icon = icon("calendar"), color = "green", width = 3),
           valueBox("5 modèles", "Disponibles", icon = icon("cogs"), color = "yellow", width = 3),
           valueBox("deSolve", "Solveur ODE", icon = icon("calculator"), color = "red", width = 3)

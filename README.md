@@ -104,7 +104,7 @@ install.packages(c(
 ))
 ```
 
-If using reproducibility:
+To get exactly the package versions of the project (recommended, also used by the CI):
 
 ```r
 install.packages("renv")
@@ -117,20 +117,26 @@ renv::restore()
 
 ### From RStudio
 
-1. Open `app.R`
+1. Open `app/app.R`
 2. Click **Run App**
 
-### From R Console
+### From R Console (repository root)
 
 ```r
-source("launch_app.R")
+source("app/run.R")   # installs missing packages, then starts the app
+# or simply
+shiny::runApp("app")
 ```
 
 ### From Terminal
 
 ```bash
-.\launch.bat
+Rscript app/run.R     # from the repository root
 ```
+
+On Windows, `app\launch.bat` also works (double-click). On Linux, macOS or Git Bash, use `./app/launch.sh`. Both find `Rscript` in the `PATH` or in the usual install locations.
+
+`app/run.R` locates the app folder by itself, so it can be started from any directory.
 
 ---
 
