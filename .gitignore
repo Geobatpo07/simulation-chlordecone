@@ -41,7 +41,7 @@ vignettes/*.pdf
 
 # pkgdown site
 docs/*
-!docs/dette.md
+!docs/*.md
 
 # translation temp files
 po/*~

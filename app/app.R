@@ -42,7 +42,7 @@ ui <- dashboardPage(
                   "Persistance longue (δ = 5e-5 ; r0 = 4e-5)" = "persist"),
       selected = "preprint"
     ),
-    p("Le scénario règle δ et r0 dans tous les onglets. Persistance longue : demi-vie du sol d'environ 15 ans.",
+    p("Le scénario règle δ et r0 dans tous les onglets. Persistance longue : demi-vie du sol d'environ 20 ans (contre environ 2 mois pour le preprint).",
       style = "padding: 0 15px; font-size: 12px; color: #b8c7ce;")
   ),
   

@@ -57,3 +57,10 @@ stopifnot(tail(actif$prevalence, 1) != tail(actif$prevalence_ref, 1),
 # La référence ne dépend pas des paramètres d'intervention
 stopifnot(max(abs(actif$prevalence_ref - neutre$prevalence_ref)) < 1e-9)
 ok("simuler_intervention")
+
+# 6. Markov : la population totale reste égale à H0 (Lambda_H = H0 * d_H, lignes de Q de somme nulle)
+pk <- c(params_defaut(3, 0.001, 0.01),
+        list(beta_1 = 5e-4, beta_2 = 7e-4, beta_3 = 1e-3, rho_1 = 0.0025, rho_2 = 0.0035, rho_3 = 0.005))
+mk <- resoudre_edo(modele_markov, c(rep(1000, 3), 50, 10, 40000, 8000, 1800, 200), pk, 20, "markov")
+stopifnot(max(abs(rowSums(mk[, c("H1", "H2", "H3", "H4")]) - 50000)) < 1e-3)
+ok("markov : population conservée")

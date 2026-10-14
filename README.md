@@ -307,7 +307,8 @@ simulation-chlordecone/
 │   ├── smoke.R             # Models: finite solutions, demography, mass conservation
 │   └── test_simulation.R   # Column names, prevalence, comparison, intervention
 ├── docs/
-│   └── dette.md        # Flaws of the preprint, to correct in a later version
+│   ├── dette.md             # Flaws of the preprint, to correct in a later version
+│   └── corrections_math.md  # Mathematical corrections applied in the code
 ├── .github/workflows/  # CI/CD (tests, then deployment to shinyapps.io)
 ├── renv.lock
 ├── README.md
@@ -399,8 +400,8 @@ The sidebar selector sets $\delta$ and $r_0$ in every tab:
 
 | Scenario | $\delta$ (day⁻¹) | $r_0$ (day⁻¹) | Behavior |
 |----------|------------------|---------------|----------|
-| Preprint (default) | 0.001 | 0.01 | Soil emptied within months; transient exposure peak, then elimination (as in the preprint's theorems) |
-| Long persistence | 5e-5 | 4e-5 | Soil half-life of about 15 years; exposure persists for decades |
+| Preprint (default) | 0.001 | 0.01 | Soil half-life of about 2 months; transient exposure peak, then elimination (as in the preprint's theorems) |
+| Long persistence | 5e-5 | 4e-5 | Soil half-life of about 20 years; exposure persists for decades |
 
 Neither $r_0$ nor the rainfall parameters are given in the preprint, so the long persistence values are illustrative. The selector also sets $\gamma$ (2.5 for the preprint scenario, 60 for long persistence), so that $B(t)$ approaches $B^*$ at the exposure level of each scenario.
 

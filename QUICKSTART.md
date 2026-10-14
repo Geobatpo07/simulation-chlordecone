@@ -97,7 +97,7 @@ Click “Download Results” to export a CSV file.
 
 ### Scenario 3b: Environmental Scenarios
 
-- Compare **Preprint** (δ = 0.001, r₀ = 0.01: soil emptied within months) and **Long persistence** (δ = 5·10⁻⁵, r₀ = 4·10⁻⁵: half-life of about 15 years)
+- Compare **Preprint** (δ = 0.001, r₀ = 0.01: soil half-life of about 2 months) and **Long persistence** (δ = 5·10⁻⁵, r₀ = 4·10⁻⁵: half-life of about 20 years)
 - The selector sets δ, r₀ and γ in every tab
 
 ### Scenario 4: Model Comparison
