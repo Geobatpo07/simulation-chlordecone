@@ -80,6 +80,6 @@ jobs:
               appName     = Sys.getenv("APP_NAME"),
               account     = Sys.getenv("SHINYAPPS_NAME"),
               forceUpdate = TRUE,
-              logLevel    = "verbose"
+              logLevel    = "normal"
             )
           '
