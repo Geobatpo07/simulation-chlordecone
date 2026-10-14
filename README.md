@@ -184,8 +184,11 @@ $$
 \frac{dB}{dt} = \gamma \frac{F}{H} - \mu_B B
 $$
 
+(form of the preprint, §9.1; $F/H$ is the per-capita availability of contaminated resource)
+
 #### Additional Parameters
-- $\gamma$ : absorption coefficient
+- $\gamma$ : absorption coefficient ($\mu g \cdot L^{-1} \cdot kg^{-1} \cdot pers.$), default 2.5
+- $k_{trans}$ : S↔I transition speed (day⁻¹). Implementation choice of the app, not in the preprint, which writes $H_I = H \cdot p_i(B)$ directly (§9.2.2)
 - $\mu_B$ : elimination rate
 - $B^*$ : exposure threshold
 - $k$ : sigmoid steepness
@@ -238,10 +241,11 @@ Simulates exposure reduction strategies:
 
 - Hydraulic engineering (reduce $r_0$)
 - Dietary awareness (reduce $\beta$)
+- Forced resource turnover (increase $\mu_F$, e.g. fishing ban)
 - Gradual implementation via sigmoid $\varphi(t)$
 
 #### Outputs
-- Before/after comparison
+- Comparison with a reference scenario without intervention (same parameters)
 - Impact on prevalence
 - Environmental recovery curves
 
@@ -376,7 +380,28 @@ https://creativecommons.org/publicdomain/zero/1.0/
 
 ---
 
+## Environmental Scenarios
+
+The sidebar selector sets $\delta$ and $r_0$ in every tab:
+
+| Scenario | $\delta$ (day⁻¹) | $r_0$ (day⁻¹) | Behavior |
+|----------|------------------|---------------|----------|
+| Preprint (default) | 0.001 | 0.01 | Soil emptied within months; transient exposure peak, then elimination (as in the preprint's theorems) |
+| Long persistence | 5e-5 | 4e-5 | Soil half-life of about 15 years; exposure persists for decades |
+
+Neither $r_0$ nor the rainfall parameters are given in the preprint, so the long persistence values are illustrative. With the long persistence scenario, $B(t)$ stays below $B^*$ unless $\gamma$ is raised.
+
+---
+
 ## Version History
+
+### Unreleased
+- Fix model comparison (prevalence computed from the wrong columns)
+- Fix inter-basin transfer in the spatial model (mass was lost)
+- Demographic equilibrium: $\Lambda_H = H_0 d_H$
+- $B(t)$ follows the preprint form with explicit $k_{trans}$
+- Environmental scenario selector (preprint / long persistence)
+- Intervention: reference scenario without intervention and $\mu_F$ action
 
 ### v1.0 (2026-01-22)
 - Initial implementation

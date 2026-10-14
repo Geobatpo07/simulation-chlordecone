@@ -64,11 +64,9 @@ modele_avec_charge <- function(t, y, params) {
     R_t <- R_moy * (1 + A_saison * sin(2 * pi * t / T_periode))
     g_R <- 1 + alpha * R_t / (R0_sat + R_t)
     
-    # Population totale
-    H_total <- H_S + H_I
-    
-    # Dynamique de la charge corporelle
-    dB <- gamma_B * F_res / H_total - mu_B * B
+    # Dynamique de la charge corporelle (µg/L), forme du preprint (§9.1) :
+    # dB/dt = γ·F/H − µ_B·B, avec F/H la disponibilité per capita
+    dB <- gamma_B * F_res / (H_S + H_I) - mu_B * B
     
     # Transition probabiliste basée sur B
     p_I <- 1 / (1 + exp(-k_sigmoid * (B - B_star)))
@@ -82,8 +80,8 @@ modele_avec_charge <- function(t, y, params) {
     dF <- kappa * E - mu_F * F_res
     
     # Transitions basées sur la charge corporelle
-    flux_S_to_I <- H_S * p_I * 0.01  # Transition graduelle
-    flux_I_to_S <- H_I * (1 - p_I) * 0.01
+    flux_S_to_I <- H_S * p_I * k_trans  # Transition graduelle
+    flux_I_to_S <- H_I * (1 - p_I) * k_trans
     
     dH_S <- Lambda_H - lambda_F * H_S - d_H * H_S + flux_I_to_S - flux_S_to_I
     dH_I <- lambda_F * H_S - d_H * H_I + flux_S_to_I - flux_I_to_S
@@ -202,7 +200,8 @@ modele_intervention <- function(t, y, params) {
     # Paramètres modifiés par l'intervention
     r0_eff <- r0 * (1 - reduction_r0 * phi_t)
     beta_eff <- beta * (1 - reduction_beta * phi_t)
-    
+    mu_F_eff <- mu_F * (1 + augmentation_muF * phi_t)  # renouvellement forcé de la ressource
+
     # Extraction des variables
     C <- y[1:n_parcelles]
     E <- y[n_parcelles + 1]
@@ -220,7 +219,7 @@ modele_intervention <- function(t, y, params) {
     # Équations différentielles
     dC <- -delta * C - r0_eff * g_R * C
     dE <- sum(r0_eff * g_R * C) - mu_E * E - kappa * E
-    dF <- kappa * E - mu_F * F_res
+    dF <- kappa * E - mu_F_eff * F_res
     dH_S <- Lambda_H - lambda_F * H_S - d_H * H_S + rho * H_I
     dH_I <- lambda_F * H_S - d_H * H_I - rho * H_I
     
@@ -251,7 +250,16 @@ ui <- dashboardPage(
       menuItem("Intervention", tabName = "intervention", icon = icon("medkit")),
       menuItem("Comparaison", tabName = "comparaison", icon = icon("balance-scale")),
       menuItem("À propos", tabName = "about", icon = icon("info-circle"))
-    )
+    ),
+    hr(),
+    radioButtons(
+      "scenario_env", "Scénario environnemental",
+      choices = c("Preprint (δ = 0,001 ; r0 = 0,01)" = "preprint",
+                  "Persistance longue (δ = 5e-5 ; r0 = 4e-5)" = "persist"),
+      selected = "preprint"
+    ),
+    p("Le scénario règle δ et r0 dans tous les onglets. Persistance longue : demi-vie du sol d'environ 15 ans.",
+      style = "padding: 0 15px; font-size: 12px; color: #b8c7ce;")
   ),
   
   # Corps principal
@@ -319,8 +327,8 @@ ui <- dashboardPage(
             h4("Parcelles"),
             sliderInput("base_n_parcelles", "Nombre de parcelles", 1, 5, 3, step = 1),
             sliderInput("base_C0", "Stock initial (kg)", 100, 2000, 1000, step = 100),
-            sliderInput("base_delta", "Taux dégradation (j⁻¹)", 0.0001, 0.01, 0.001, step = 0.0001),
-            sliderInput("base_r0", "Ruissellement base (j⁻¹)", 0.001, 0.05, 0.01, step = 0.001),
+            sliderInput("base_delta", "Taux dégradation (j⁻¹)", 0.00001, 0.01, 0.001, step = 0.00001),
+            sliderInput("base_r0", "Ruissellement base (j⁻¹)", 0.00001, 0.05, 0.01, step = 0.00001),
             
             h4("Environnement et ressource"),
             sliderInput("base_alpha", "Amplification pluie", 0, 2, 0.8, step = 0.1),
@@ -364,12 +372,13 @@ ui <- dashboardPage(
             
             h4("Paramètres de base (hérités)"),
             sliderInput("charge_n_parcelles", "Nombre de parcelles", 1, 5, 3, step = 1),
-            sliderInput("charge_delta", "Taux dégradation (j⁻¹)", 0.0001, 0.01, 0.001, step = 0.0001),
+            sliderInput("charge_delta", "Taux dégradation (j⁻¹)", 0.00001, 0.01, 0.001, step = 0.00001),
             sliderInput("charge_kappa", "Transfert E→F (j⁻¹)", 0.01, 0.1, 0.03, step = 0.01),
             sliderInput("charge_beta", "Taux exposition (j⁻¹·kg⁻¹)", 0.0001, 0.01, 0.001, step = 0.0001),
             
             h4("Paramètres spécifiques B(t)"),
-            sliderInput("charge_gamma_B", "Coeff. absorption γ (µg·L⁻¹·kg⁻¹)", 0.001, 0.1, 0.01, step = 0.001),
+            sliderInput("charge_gamma_B", "Coeff. absorption γ (µg·L⁻¹·kg⁻¹·pers.)", 0.1, 10, 2.5, step = 0.1),
+            sliderInput("charge_k_trans", "Vitesse de transition S↔I (j⁻¹)", 0.001, 0.05, 0.01, step = 0.001),
             sliderInput("charge_mu_B", "Élimination corporelle µ_B (j⁻¹)", 0.001, 0.02, 0.005, step = 0.001),
             sliderInput("charge_B_star", "Seuil charge B* (µg/L)", 0.5, 2, 1, step = 0.1),
             sliderInput("charge_k_sigmoid", "Raideur sigmoïde k", 1, 10, 5, step = 0.5),
@@ -408,7 +417,7 @@ ui <- dashboardPage(
             sliderInput("spatial_w_transfer", "Taux transfert inter-bassins (j⁻¹)", 0, 0.1, 0.02, step = 0.01),
             
             h4("Paramètres environnementaux"),
-            sliderInput("spatial_delta", "Taux dégradation (j⁻¹)", 0.0001, 0.01, 0.001, step = 0.0001),
+            sliderInput("spatial_delta", "Taux dégradation (j⁻¹)", 0.00001, 0.01, 0.001, step = 0.00001),
             sliderInput("spatial_kappa", "Transfert E→F (j⁻¹)", 0.01, 0.1, 0.03, step = 0.01),
             sliderInput("spatial_mu_E", "Élimination environnement (j⁻¹)", 0.01, 0.1, 0.05, step = 0.01),
             
@@ -443,7 +452,7 @@ ui <- dashboardPage(
             
             h4("Paramètres environnementaux"),
             sliderInput("markov_n_parcelles", "Nombre de parcelles", 1, 5, 3, step = 1),
-            sliderInput("markov_delta", "Taux dégradation (j⁻¹)", 0.0001, 0.01, 0.001, step = 0.0001),
+            sliderInput("markov_delta", "Taux dégradation (j⁻¹)", 0.00001, 0.01, 0.001, step = 0.00001),
             sliderInput("markov_kappa", "Transfert E→F (j⁻¹)", 0.01, 0.1, 0.03, step = 0.01),
             
             h4("Taux de transition (exposition)"),
@@ -487,10 +496,11 @@ ui <- dashboardPage(
             sliderInput("interv_tau", "Durée transition (années)", 0.5, 5, 2, step = 0.5),
             sliderInput("interv_reduction_r0", "Réduction ruissellement (%)", 0, 80, 40, step = 5),
             sliderInput("interv_reduction_beta", "Réduction exposition (%)", 0, 80, 40, step = 5),
-            
+            sliderInput("interv_aug_muF", "Augmentation renouvellement ressource µF (%)", 0, 200, 0, step = 10),
+
             h4("Paramètres de base"),
             sliderInput("interv_n_parcelles", "Nombre de parcelles", 1, 5, 3, step = 1),
-            sliderInput("interv_delta", "Taux dégradation (j⁻¹)", 0.0001, 0.01, 0.001, step = 0.0001),
+            sliderInput("interv_delta", "Taux dégradation (j⁻¹)", 0.00001, 0.01, 0.001, step = 0.00001),
             sliderInput("interv_kappa", "Transfert E→F (j⁻¹)", 0.01, 0.1, 0.03, step = 0.01),
             
             sliderInput("interv_duree", "Durée (années)", 1, 50, 20, step = 1),
@@ -650,7 +660,21 @@ ui <- dashboardPage(
 # =============================================================================
 
 server <- function(input, output, session) {
-  
+
+  # ---------------------------------------------------------------------------
+  # SCÉNARIO ENVIRONNEMENTAL (preprint vs persistance longue)
+  # ---------------------------------------------------------------------------
+
+  delta_scen <- reactive(if (identical(input$scenario_env, "persist")) 5e-5 else 0.001)
+  r0_scen    <- reactive(if (identical(input$scenario_env, "persist")) 4e-5 else 0.01)
+
+  observeEvent(input$scenario_env, {
+    for (id in c("base_delta", "charge_delta", "spatial_delta", "markov_delta", "interv_delta")) {
+      updateSliderInput(session, id, value = delta_scen())
+    }
+    updateSliderInput(session, "base_r0", value = r0_scen())
+  }, ignoreInit = TRUE)
+
   # ---------------------------------------------------------------------------
   # SIMULATION MODÈLE DE BASE
   # ---------------------------------------------------------------------------
@@ -669,7 +693,7 @@ server <- function(input, output, session) {
       mu_E = input$base_mu_E,
       kappa = input$base_kappa,
       mu_F = input$base_mu_F,
-      Lambda_H = 10,
+      Lambda_H = input$base_H0 / (70 * 365),  # équilibre démographique : H0 * d_H
       d_H = 1 / (70 * 365),
       rho = input$base_rho,
       beta = input$base_beta,
@@ -771,7 +795,7 @@ server <- function(input, output, session) {
     params <- list(
       n_parcelles = input$charge_n_parcelles,
       delta = rep(input$charge_delta, input$charge_n_parcelles),
-      r0 = rep(0.01, input$charge_n_parcelles),
+      r0 = rep(r0_scen(), input$charge_n_parcelles),
       alpha = 0.8,
       R0_sat = 50,
       R_moy = 6,
@@ -780,12 +804,13 @@ server <- function(input, output, session) {
       mu_E = 0.05,
       kappa = input$charge_kappa,
       mu_F = 0.02,
-      Lambda_H = 10,
+      Lambda_H = 50000 / (70 * 365),  # équilibre démographique : H0 * d_H
       d_H = 1 / (70 * 365),
       rho = 0.005,
       beta = input$charge_beta,
       F_max = 100,
       gamma_B = input$charge_gamma_B,
+      k_trans = input$charge_k_trans,
       mu_B = input$charge_mu_B,
       B_star = input$charge_B_star,
       k_sigmoid = input$charge_k_sigmoid
@@ -879,7 +904,7 @@ server <- function(input, output, session) {
       n_bassins = n_b,
       parcelles_to_bassin = parcelles_to_bassin,
       delta = rep(input$spatial_delta, n_p),
-      r0 = rep(0.01, n_p),
+      r0 = rep(r0_scen(), n_p),
       alpha = 0.8,
       R0_sat = 50,
       R_moy = 6,
@@ -888,7 +913,7 @@ server <- function(input, output, session) {
       mu_E = input$spatial_mu_E,
       kappa = input$spatial_kappa,
       mu_F = 0.02,
-      Lambda_H = 10,
+      Lambda_H = 50000 / (70 * 365),  # équilibre démographique : H0 * d_H
       d_H = 1 / (70 * 365),
       rho = 0.005,
       beta = 0.001,
@@ -982,7 +1007,7 @@ server <- function(input, output, session) {
     params <- list(
       n_parcelles = input$markov_n_parcelles,
       delta = rep(input$markov_delta, input$markov_n_parcelles),
-      r0 = rep(0.01, input$markov_n_parcelles),
+      r0 = rep(r0_scen(), input$markov_n_parcelles),
       alpha = 0.8,
       R0_sat = 50,
       R_moy = 6,
@@ -991,7 +1016,7 @@ server <- function(input, output, session) {
       mu_E = 0.05,
       kappa = input$markov_kappa,
       mu_F = 0.02,
-      Lambda_H = 10,
+      Lambda_H = 50000 / (70 * 365),  # équilibre démographique : H0 * d_H
       d_H = 1 / (70 * 365),
       rho = input$markov_rho,
       beta_1 = input$markov_beta_1,
@@ -1107,7 +1132,7 @@ server <- function(input, output, session) {
     params <- list(
       n_parcelles = input$interv_n_parcelles,
       delta = rep(input$interv_delta, input$interv_n_parcelles),
-      r0 = rep(0.01, input$interv_n_parcelles),
+      r0 = rep(r0_scen(), input$interv_n_parcelles),
       alpha = 0.8,
       R0_sat = 50,
       R_moy = 6,
@@ -1116,7 +1141,7 @@ server <- function(input, output, session) {
       mu_E = 0.05,
       kappa = input$interv_kappa,
       mu_F = 0.02,
-      Lambda_H = 10,
+      Lambda_H = 50000 / (70 * 365),  # équilibre démographique : H0 * d_H
       d_H = 1 / (70 * 365),
       rho = 0.005,
       beta = 0.001,
@@ -1124,21 +1149,36 @@ server <- function(input, output, session) {
       t0_intervention = input$interv_t0 * 365,
       tau_intervention = input$interv_tau * 365,
       reduction_r0 = input$interv_reduction_r0 / 100,
-      reduction_beta = input$interv_reduction_beta / 100
+      reduction_beta = input$interv_reduction_beta / 100,
+      augmentation_muF = input$interv_aug_muF / 100
     )
-    
+
+    # Scénario de référence : mêmes paramètres, sans intervention
+    params_ref <- params
+    params_ref$reduction_r0 <- 0
+    params_ref$reduction_beta <- 0
+    params_ref$augmentation_muF <- 0
+
     C0 <- rep(1000, input$interv_n_parcelles)
     y0 <- c(C0, 50, 10, 49000, 1000)
     times <- seq(0, input$interv_duree * 365, by = 1)
     
     withProgress(message = 'Simulation intervention...', value = 0, {
       solution <- ode(y = y0, times = times, func = modele_intervention, parms = params)
+      solution_ref <- ode(y = y0, times = times, func = modele_intervention, parms = params_ref)
       incProgress(1)
     })
-    
+
+    col_names <- c("time", paste0("C", 1:input$interv_n_parcelles), "E", "F", "H_S", "H_I")
     sol_df <- as.data.frame(solution)
-    colnames(sol_df) <- c("time", paste0("C", 1:input$interv_n_parcelles), "E", "F", "H_S", "H_I")
-    sol_df$time_years <- sol_df$time / 365
+    colnames(sol_df) <- col_names
+    ref_df <- as.data.frame(solution_ref)
+    colnames(ref_df) <- col_names
+    sol_df$E_ref <- ref_df$E
+    sol_df$F_ref <- ref_df$F
+    sol_df$H_I_ref <- ref_df$H_I
+    sol_df$prevalence_ref <- ref_df$H_I / (ref_df$H_S + ref_df$H_I) * 100
+sol_df$time_years <- sol_df$time / 365
     sol_df$H_total <- sol_df$H_S + sol_df$H_I
     sol_df$prevalence <- sol_df$H_I / sol_df$H_total * 100
     
@@ -1155,24 +1195,34 @@ server <- function(input, output, session) {
     # Ligne verticale pour début intervention
     t0_line <- input$interv_t0
     
-    p1 <- ggplot(df, aes(x = time_years, y = prevalence)) +
-      geom_rect(xmin = t0_line, xmax = max(df$time_years), ymin = -Inf, ymax = Inf, 
+    n_fin <- nrow(df)
+
+    p1 <- ggplot(df, aes(x = time_years)) +
+      geom_rect(xmin = t0_line, xmax = max(df$time_years), ymin = -Inf, ymax = Inf,
                 fill = "lightblue", alpha = 0.01) +
       geom_vline(xintercept = t0_line, linetype = "dashed", color = "blue", linewidth = 1) +
-      geom_line(linewidth = 1.3, color = "darkred") +
-      annotate("text", x = t0_line + 1, y = max(df$prevalence) * 0.9, 
+      geom_line(aes(y = prevalence_ref, color = "Sans intervention"), linewidth = 1.1, linetype = "dashed") +
+      geom_line(aes(y = prevalence, color = "Avec intervention"), linewidth = 1.3) +
+      annotate("text", x = t0_line + 1, y = max(c(df$prevalence, df$prevalence_ref)) * 0.9,
                label = "Début intervention", hjust = 0, color = "blue") +
-      labs(x = "Temps (années)", y = "Prévalence (%)", title = "Impact sur la prévalence") +
-      theme_minimal(base_size = 13)
-    
+      scale_color_manual(values = c("Avec intervention" = "darkred", "Sans intervention" = "grey40")) +
+      labs(x = "Temps (années)", y = "Prévalence (%)", title = "Impact sur la prévalence",
+           subtitle = sprintf("Finale : %.1f %% avec vs %.1f %% sans intervention",
+                              df$prevalence[n_fin], df$prevalence_ref[n_fin])) +
+      theme_minimal(base_size = 13) +
+      theme(legend.position = "bottom", legend.title = element_blank())
+
     p2 <- ggplot(df, aes(x = time_years)) +
-      geom_rect(xmin = t0_line, xmax = max(df$time_years), ymin = -Inf, ymax = Inf, 
+      geom_rect(xmin = t0_line, xmax = max(df$time_years), ymin = -Inf, ymax = Inf,
                 fill = "lightblue", alpha = 0.01) +
       geom_vline(xintercept = t0_line, linetype = "dashed", color = "blue", linewidth = 1) +
-      geom_line(aes(y = F), linewidth = 1.2, color = "darkorange") +
+      geom_line(aes(y = F_ref, color = "Sans intervention"), linewidth = 1.1, linetype = "dashed") +
+      geom_line(aes(y = F, color = "Avec intervention"), linewidth = 1.2) +
+      scale_color_manual(values = c("Avec intervention" = "darkorange", "Sans intervention" = "grey40")) +
       labs(x = "Temps (années)", y = "Ressource (kg)", title = "Impact sur la ressource alimentaire") +
-      theme_minimal(base_size = 13)
-    
+      theme_minimal(base_size = 13) +
+      theme(legend.position = "bottom", legend.title = element_blank())
+
     p3 <- ggplot(df, aes(x = time_years)) +
       geom_rect(xmin = t0_line, xmax = max(df$time_years), ymin = -Inf, ymax = Inf, 
                 fill = "lightblue", alpha = 0.01) +
@@ -1226,9 +1276,9 @@ server <- function(input, output, session) {
     times <- seq(0, duree, by = 1)
     
     # 1. Modèle de base
-    params_base <- list(n_parcelles = 3, delta = rep(0.001, 3), r0 = rep(0.01, 3),
+    params_base <- list(n_parcelles = 3, delta = rep(delta_scen(), 3), r0 = rep(r0_scen(), 3),
                         alpha = 0.8, R0_sat = 50, R_moy = 6, A_saison = 0.5, T_periode = 365,
-                        mu_E = 0.05, kappa = 0.03, mu_F = 0.02, Lambda_H = 10, 
+                        mu_E = 0.05, kappa = 0.03, mu_F = 0.02, Lambda_H = H0_val / (70 * 365), 
                         d_H = 1/(70*365), rho = 0.005, beta = 0.001, F_max = 100)
     y0_base <- c(rep(C0_val, 3), 50, 10, H0_val*0.98, H0_val*0.02)
     
@@ -1239,7 +1289,7 @@ server <- function(input, output, session) {
     df_base$prevalence <- df_base$H_I / (df_base$H_S + df_base$H_I) * 100
     
     # 2. Modèle avec charge
-    params_charge <- c(params_base, list(gamma_B = 0.01, mu_B = 0.005, B_star = 1, k_sigmoid = 5))
+    params_charge <- c(params_base, list(gamma_B = 2.5, k_trans= 0.01, mu_B = 0.005, B_star = 1, k_sigmoid = 5))
     y0_charge <- c(rep(C0_val, 3), 50, 10, H0_val*0.98, H0_val*0.02, 0)
     
     sol_charge <- ode(y = y0_charge, times = times, func = modele_avec_charge, parms = params_charge)
