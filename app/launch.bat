@@ -1,43 +1,34 @@
 @echo off
+setlocal
+cd /d "%~dp0"
+
 echo ============================================
 echo Application Shiny - Modelisation Chlordecone
 echo ============================================
 echo.
-echo Lancement de l'application...
-echo.
 
-REM Recherche de R dans les emplacements courants
-set R_PATHS=^
-"C:\Program Files\R\R-4.3.2\bin\R.exe"^
-"C:\Program Files\R\R-4.3.1\bin\R.exe"^
-"C:\Program Files\R\R-4.3.0\bin\R.exe"^
-"C:\Program Files\R\R-4.2.3\bin\R.exe"^
-"C:\Program Files\R\R-4.2.2\bin\R.exe"^
-"C:\Program Files\R\R-4.2.1\bin\R.exe"^
-"C:\Program Files\R\R-4.1.3\bin\R.exe"
+REM 1) Rscript dans le PATH, 2) sinon la version de R la plus recente dans Program Files
+set "RSCRIPT="
+where Rscript >nul 2>nul && set "RSCRIPT=Rscript"
 
-set R_EXE=
-
-for %%p in (%R_PATHS%) do (
-    if exist %%p (
-        set R_EXE=%%p
-        goto :found
+if not defined RSCRIPT (
+    for /f "delims=" %%d in ('dir /b /ad /o-n "%ProgramFiles%\R\R-*" 2^>nul') do (
+        if not defined RSCRIPT if exist "%ProgramFiles%\R\%%d\bin\Rscript.exe" set "RSCRIPT=%ProgramFiles%\R\%%d\bin\Rscript.exe"
     )
 )
 
-:found
-if "%R_EXE%"=="" (
-    echo ERREUR: R n'a pas ete trouve sur votre systeme
-    echo Veuillez installer R depuis https://cran.r-project.org/
-    echo Ou specifier manuellement le chemin vers R.exe
+if not defined RSCRIPT (
+    echo ERREUR: R n'a pas ete trouve sur votre systeme.
+    echo Installez R depuis https://cran.r-project.org/ ou ajoutez Rscript.exe au PATH.
     pause
     exit /b 1
 )
 
-echo R trouve: %R_EXE%
+echo R trouve: %RSCRIPT%
+echo.
+echo Lancement de l'application (Ctrl+C pour arreter)...
 echo.
 
-REM Lancement de l'application
-%R_EXE% --vanilla --quiet -e "shiny::runApp(launch.browser=TRUE)"
+"%RSCRIPT%" --vanilla run.R
 
 pause

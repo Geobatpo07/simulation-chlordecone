@@ -23,7 +23,7 @@
 | Focus | Seasonal forcing & periodic stability |
 | Associated Preprint | https://doi.org/10.13140/RG.2.2.36238.01607 |
 | Status | Research Prototype |
-| Version | 1.0 |
+| Version | 1.1 |
 
 ---
 
@@ -77,7 +77,6 @@ The model integrates:
 | shinydashboard | Dashboard UI |
 | deSolve | ODE solver |
 | ggplot2 | Visualization |
-| DT | Interactive tables |
 | reshape2 | Data transformation |
 | renv | Reproducible environment |
 
@@ -101,12 +100,11 @@ install.packages(c(
   "deSolve",
   "ggplot2",
   "gridExtra",
-  "DT",
   "reshape2"
 ))
 ```
 
-If using reproducibility:
+To get exactly the package versions of the project (recommended, also used by the CI):
 
 ```r
 install.packages("renv")
@@ -119,20 +117,26 @@ renv::restore()
 
 ### From RStudio
 
-1. Open `app.R`
+1. Open `app/app.R`
 2. Click **Run App**
 
-### From R Console
+### From R Console (repository root)
 
 ```r
-source("launch_app.R")
+source("app/run.R")   # installs missing packages, then starts the app
+# or simply
+shiny::runApp("app")
 ```
 
 ### From Terminal
 
 ```bash
-.\launch.bat
+Rscript app/run.R     # from the repository root
 ```
+
+On Windows, `app\launch.bat` also works (double-click). On Linux, macOS or Git Bash, use `./app/launch.sh`. Both find `Rscript` in the `PATH` or in the usual install locations.
+
+`app/run.R` locates the app folder by itself, so it can be started from any directory.
 
 ---
 
@@ -159,7 +163,7 @@ source("launch_app.R")
 - Rainfall forcing ($R$)
 
 #### Adjustable Parameters
-- Number of parcels
+- Number of parcels (1 to 7, as in the preprint)
 - Initial stocks
 - Degradation rates ($\delta$)
 - Runoff rate ($r_0$)
@@ -225,7 +229,7 @@ Discrete exposure levels:
 
 #### Features
 - Progression via exposure ($\beta_i\cdot F$)
-- Regression via depuration ($\rho_i$)
+- Regression via depuration ($\rho_1, \rho_2, \rho_3$, free parameters as in preprint §10.3.2; defaults 0.0025, 0.0035, 0.005 day⁻¹)
 - Population distribution across classes
 
 #### Benefits
@@ -246,8 +250,24 @@ Simulates exposure reduction strategies:
 
 #### Outputs
 - Comparison with a reference scenario without intervention (same parameters)
+- Relative prevalence reduction at 5 years, to compare with the objective of preprint §8.2.1 (initial $H_I/H$ of 20 %, adjustable)
 - Impact on prevalence
 - Environmental recovery curves
+
+---
+
+### Sensitivity Analysis
+
+Effect of 9 parameters ($\delta$, $r_0$, $\alpha$, $\mu_E$, $\kappa$, $\mu_F$, $\beta$, $\rho$, $F_{max}$) of the base model on three outputs: maximum prevalence, prevalence at 5 years and peak of the food resource $F$.
+
+- **Local (one at a time)**: each parameter is multiplied by 0.5 then 2 (tornado diagram) and the elasticity is computed at $\pm 10\ \%$.
+- **Global (Sobol)**: the 9 parameters vary together between half and double of their reference value (log-uniform); first-order ($S_1$) and total ($S_T$) indices with 95 % bootstrap intervals.
+
+The reference values follow the selected environmental scenario. Results and interpretation: [docs/sensibilite.md](docs/sensibilite.md). For large samples, use the parallel script:
+
+```bash
+Rscript scripts/sensibilite.R preprint,persist 1024 20 20 8   # scenarios, N, years, initial prevalence (%), cores
+```
 
 ---
 
@@ -292,10 +312,23 @@ Simulates exposure reduction strategies:
 ```
 simulation-chlordecone/
 │
-├── app/                # Shiny application
-├── data/               # Parameters
-├── results/            # Outputs
+├── app/
+│   ├── app.R           # Interface (UI) and server
+│   └── R/              # Loaded automatically by Shiny
+│       ├── models.R        # ODE models (no Shiny dependency)
+│       ├── simulation.R    # Parameters, solver, prevalence, comparison, intervention
+│       ├── sensibilite.R   # Sensitivity analysis (one-at-a-time and Sobol)
+│       └── plots.R         # ggplot2 figures
+├── scripts/
+│   └── sensibilite.R       # Parallel sensitivity analysis, writes CSV files in results/
+├── tests/
+│   ├── smoke.R             # Models: finite solutions, demography, mass conservation
+│   ├── test_simulation.R   # Column names, prevalence, comparison, intervention
+│   └── test_sensibilite.R  # Sobol estimator validated on the Ishigami function, elasticities
 ├── docs/
+│   ├── dette.md             # Flaws of the preprint, to correct in a later version
+│   └── corrections_math.md  # Mathematical corrections applied in the code
+├── .github/workflows/  # CI/CD (tests, then deployment to shinyapps.io)
 ├── renv.lock
 ├── README.md
 └── LICENSE
@@ -342,7 +375,7 @@ This platform illustrates:
 ## Future Extensions
 
 - Bayesian calibration
-- Global sensitivity analysis (Sobol)
+- Sensitivity analysis of the other models (the base model is done: see [docs/sensibilite.md](docs/sensibilite.md))
 - GIS coupling
 - Optimal control module
 - Stochastic extensions
@@ -386,10 +419,12 @@ The sidebar selector sets $\delta$ and $r_0$ in every tab:
 
 | Scenario | $\delta$ (day⁻¹) | $r_0$ (day⁻¹) | Behavior |
 |----------|------------------|---------------|----------|
-| Preprint (default) | 0.001 | 0.01 | Soil emptied within months; transient exposure peak, then elimination (as in the preprint's theorems) |
-| Long persistence | 5e-5 | 4e-5 | Soil half-life of about 15 years; exposure persists for decades |
+| Preprint (default) | 0.001 | 0.01 | Soil half-life of about 2 months; transient exposure peak, then elimination (as in the preprint's theorems) |
+| Long persistence | 5e-5 | 4e-5 | Soil half-life of about 20 years; exposure persists for decades |
 
-Neither $r_0$ nor the rainfall parameters are given in the preprint, so the long persistence values are illustrative. With the long persistence scenario, $B(t)$ stays below $B^*$ unless $\gamma$ is raised.
+Neither $r_0$ nor the rainfall parameters are given in the preprint, so the long persistence values are illustrative. The selector also sets $\gamma$ (2.5 for the preprint scenario, 60 for long persistence), so that $B(t)$ approaches $B^*$ at the exposure level of each scenario.
+
+With an initial prevalence of 20 % and the default intervention ($-40\ \%$ on $r_0$ and $\beta$, immediate start), the long persistence scenario with 3 parcels gives about 13 % at 5 years versus 29 % without intervention (relative reduction of about 54 %), consistent with the objective of §8.2.1 (halving exposure in 5 years). The preprint scenario does not reproduce it: exposure saturates at $F_{max}$ and the contamination disappears within a few years, whatever the intervention.
 
 ---
 
@@ -397,8 +432,8 @@ Neither $r_0$ nor the rainfall parameters are given in the preprint, so the long
 
 [`.github/workflows/deploy-shinyapps.yml`](.github/workflows/deploy-shinyapps.yml) runs on every push to `main` that touches `app/`, `renv.lock` or `tests/`:
 
-1. **test**: restores the `renv` library and runs `Rscript tests/smoke.R` (loads the models, checks finite solutions, demographic equilibrium and mass conservation in the spatial model). Also runs on pull requests.
-2. **deploy**: if the tests pass, deploys `app/app.R` to shinyapps.io with `rsconnect` (app name `chlordecone-simulation-app`).
+1. **test**: restores the `renv` library and runs `Rscript tests/smoke.R` (finite solutions, demographic equilibrium, mass conservation in the spatial model) and `Rscript tests/test_simulation.R` (column names, prevalence, model comparison, intervention reference). Also runs on pull requests.
+2. **deploy**: if the tests pass, deploys `app/app.R` and `app/R/` to shinyapps.io with `rsconnect` (app name `chlordecone-simulation-app`).
 
 Required repository secrets (Settings → Secrets and variables → Actions): `SHINYAPPS_NAME`, `SHINYAPPS_TOKEN`, `SHINYAPPS_SECRET` (from shinyapps.io → Account → Tokens). A manual run is available from the Actions tab.
 
@@ -406,13 +441,32 @@ Required repository secrets (Settings → Secrets and variables → Actions): `S
 
 ## Version History
 
-### Unreleased
-- Fix model comparison (prevalence computed from the wrong columns)
-- Fix inter-basin transfer in the spatial model (mass was lost)
-- Demographic equilibrium: $\Lambda_H = H_0 d_H$
-- $B(t)$ follows the preprint form with explicit $k_{trans}$
-- Environmental scenario selector (preprint / long persistence)
-- Intervention: reference scenario without intervention and $\mu_F$ action
+### v1.1 (2026-10-14)
+
+**Corrections**
+- Model comparison: the prevalence was computed from the wrong columns (columns are now named, no positional indexing).
+- Spatial model: the inter-basin transfer was overwritten and mass was lost.
+- Demographic equilibrium $\Lambda_H = H_0 d_H$ (the population no longer drifts towards 255,500).
+
+**Fidelity to the preprint** (details in [docs/corrections_math.md](docs/corrections_math.md))
+- $B(t)$ follows the preprint form $\gamma F/H - \mu_B B$, with an explicit relaxation speed $k_{trans}$ towards $H\,p(B)$.
+- Markov $\rho_i$ as free parameters; up to 7 parcels.
+- Intervention: reference scenario without intervention, action on $\mu_F$, initial prevalence of 20 %, relative reduction at 5 years.
+- Environmental scenarios: preprint (soil half-life of 59 days) and long persistence (20 years).
+
+**New**
+- Sensitivity analysis of the base model (one at a time and Sobol): tab, parallel script, results in [docs/sensibilite.md](docs/sensibilite.md).
+
+**Engineering**
+- Code split into `app/R/` (models, simulation, plots, sensitivity).
+- Tests: `tests/smoke.R`, `tests/test_simulation.R`, `tests/test_sensibilite.R`.
+- CI/CD (GitHub Actions): tests, then deployment to shinyapps.io; `renv.lock` updated.
+- Launch scripts: `run.R` works from any folder, `launch.bat` and `launch.sh`; `launch_app.R` removed (duplicate of `run.R`).
+- The unused DT dependency is removed.
+
+**Documentation**
+- Flaws of the preprint: [docs/dette.md](docs/dette.md).
+- README and QUICKSTART updated.
 
 ### v1.0 (2026-01-22)
 - Initial implementation

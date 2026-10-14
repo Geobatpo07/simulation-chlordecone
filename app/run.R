@@ -1,47 +1,35 @@
-# Script de lancement de l'application Shiny
-# Modélisation de l'exposition au chlordécone
+# Lancement de l'application Shiny - Modélisation de l'exposition au chlordécone
+#
+# Utilisation (depuis n'importe quel dossier) :
+#   Rscript app/run.R          # depuis la racine du dépôt
+#   source("app/run.R")        # depuis une console R ouverte à la racine
+#   app\launch.bat             # double-clic ou terminal Windows
+#
+# Pour retrouver exactement les versions de packages du projet, utiliser renv :
+#   renv::restore()
 
-# Installation des packages nécessaires (si non installés)
-packages <- c("shiny", "shinydashboard", "deSolve", "ggplot2", 
-              "gridExtra", "DT", "reshape2")
+packages <- c("shiny", "shinydashboard", "deSolve", "ggplot2", "gridExtra", "reshape2")
 
-install_if_missing <- function(packages) {
-  new_packages <- packages[!(packages %in% installed.packages()[,"Package"])]
-  if(length(new_packages) > 0) {
-    cat("Installation des packages manquants:", paste(new_packages, collapse = ", "), "\n")
-    install.packages(new_packages, dependencies = TRUE)
-  } else {
-    cat("Tous les packages sont déjà installés.\n")
-  }
+manquants <- packages[!vapply(packages, requireNamespace, logical(1), quietly = TRUE)]
+if (length(manquants) > 0) {
+  cat("Installation des packages manquants :", paste(manquants, collapse = ", "), "\n")
+  install.packages(manquants, repos = "https://cloud.r-project.org/")
 }
 
-install_if_missing(packages)
-
-# Chargement des packages
-cat("\nChargement des packages...\n")
-suppressPackageStartupMessages({
-  library(shiny)
-  library(shinydashboard)
-  library(deSolve)
-  library(ggplot2)
-  library(gridExtra)
-  library(DT)
-  library(reshape2)
-})
-
-cat("✓ Packages chargés avec succès\n\n")
-
-# Lancement de l'application
-cat("Lancement de l'application Shiny...\n")
-cat("L'application s'ouvrira dans votre navigateur par défaut.\n")
-cat("Pour arrêter l'application, appuyez sur Ctrl+C ou Esc dans la console R.\n\n")
-
-# Déterminer le chemin du dossier contenant ce script
-app_dir <- dirname(sys.frame(1)$ofile)
-if(length(app_dir) == 0 || app_dir == "") {
-  # Si exécuté depuis RStudio ou interactivement
-  app_dir <- getwd()
+# Dossier de l'application : celui de ce script, quelle que soit la façon de le lancer
+dossier_script <- function() {
+  args <- commandArgs(trailingOnly = FALSE)
+  fichier <- sub("^--file=", "", args[grepl("^--file=", args)])
+  if (length(fichier) == 1) return(dirname(normalizePath(fichier)))                 # Rscript
+  ofile <- tryCatch(sys.frame(1)$ofile, error = function(e) NULL)
+  if (!is.null(ofile)) return(dirname(normalizePath(ofile)))                        # source()
+  if (file.exists("app.R")) return(getwd())                                         # console dans app/
+  if (file.exists(file.path("app", "app.R"))) return(normalizePath("app"))          # console à la racine
+  stop("Impossible de localiser app.R : lancez le script depuis la racine du dépôt ou le dossier app/.")
 }
 
-# Lancement
-runApp(appDir = app_dir, launch.browser = TRUE)
+app_dir <- dossier_script()
+cat("Application :", app_dir, "\n")
+cat("Elle s'ouvrira dans votre navigateur. Pour l'arreter : Ctrl+C (ou Echap dans RStudio).\n\n")
+
+shiny::runApp(appDir = app_dir, launch.browser = TRUE)
