@@ -393,6 +393,17 @@ Neither $r_0$ nor the rainfall parameters are given in the preprint, so the long
 
 ---
 
+## Continuous Deployment
+
+[`.github/workflows/deploy-shinyapps.yml`](.github/workflows/deploy-shinyapps.yml) runs on every push to `main` that touches `app/`, `renv.lock` or `tests/`:
+
+1. **test**: restores the `renv` library and runs `Rscript tests/smoke.R` (loads the models, checks finite solutions, demographic equilibrium and mass conservation in the spatial model). Also runs on pull requests.
+2. **deploy**: if the tests pass, deploys `app/app.R` to shinyapps.io with `rsconnect` (app name `chlordecone-simulation-app`).
+
+Required repository secrets (Settings → Secrets and variables → Actions): `SHINYAPPS_NAME`, `SHINYAPPS_TOKEN`, `SHINYAPPS_SECRET` (from shinyapps.io → Account → Tokens). A manual run is available from the Actions tab.
+
+---
+
 ## Version History
 
 ### Unreleased
