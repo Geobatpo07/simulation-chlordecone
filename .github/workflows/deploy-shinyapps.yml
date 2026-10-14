@@ -41,8 +41,11 @@ jobs:
 
       - uses: r-lib/actions/setup-renv@v2
 
-      - name: Test de fumée (chargement de app.R et modèles ODE)
+      - name: Test de fumée (modèles ODE)
         run: Rscript tests/smoke.R
+
+      - name: Tests de la couche simulation
+        run: Rscript tests/test_simulation.R
 
   deploy:
     needs: test
@@ -76,7 +79,7 @@ jobs:
             )
             rsconnect::deployApp(
               appDir      = "app",
-              appFiles    = "app.R",
+              appFiles    = c("app.R", "R"),
               appName     = Sys.getenv("APP_NAME"),
               account     = Sys.getenv("SHINYAPPS_NAME"),
               forceUpdate = TRUE

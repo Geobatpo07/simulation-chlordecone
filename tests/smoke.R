@@ -1,48 +1,40 @@
-# Test de fumée : app.R se charge et les modèles ODE donnent des solutions finies.
+# Test de fumée : les modèles ODE donnent des solutions finies et respectent
+# l'équilibre démographique et la conservation de la masse.
 # Usage (depuis la racine du dépôt) : Rscript tests/smoke.R
 
 suppressMessages(library(deSolve))
+source("app/R/models.R")
+source("app/R/simulation.R")
 
-exprs <- parse("app/app.R", encoding = "UTF-8")
-
-# Évalue uniquement les fonctions modele_*, sans lancer l'application
-for (e in exprs) {
-  if (is.call(e) && identical(e[[1]], as.name("<-")) && grepl("^modele_", as.character(e[[2]]))) eval(e)
-}
-stopifnot(exists("modele_base"), exists("modele_avec_charge"), exists("modele_spatialise"),
-          exists("modele_markov"), exists("modele_intervention"))
-
-params <- list(
-  n_parcelles = 3, delta = rep(0.001, 3), r0 = rep(0.01, 3), alpha = 0.8, R0_sat = 50,
-  R_moy = 6, A_saison = 0.5, T_periode = 365, mu_E = 0.05, kappa = 0.03, mu_F = 0.02,
-  Lambda_H = 50000 / (70 * 365), d_H = 1 / (70 * 365), rho = 0.005, beta = 0.001, F_max = 100
-)
-times <- seq(0, 20 * 365, by = 1)
-check <- function(nom, sol) {
-  stopifnot(is.finite(sum(sol)), all(sol[, -1] > -1e-6))
-  cat(sprintf("OK  %-12s (%d états)\n", nom, ncol(sol) - 1))
+check <- function(nom, df) {
+  valeurs <- df[, setdiff(names(df), c("time", "time_years"))]
+  stopifnot(all(is.finite(as.matrix(df))), all(valeurs > -1e-6))
+  cat(sprintf("OK  %-12s (%d colonnes)\n", nom, ncol(df)))
 }
 
-sol <- ode(c(rep(1000, 3), 50, 10, 49000, 1000), times, modele_base, params)
-check("base", sol)
+n <- 3
+params <- params_defaut(n, delta = 0.001, r0 = 0.01)
+base <- resoudre_edo(modele_base, c(rep(1000, n), 50, 10, 49000, 1000), params, 20, "base")
+check("base", base)
 # Démographie à l'équilibre : H = Lambda_H / d_H = 50 000
-stopifnot(abs(sol[nrow(sol), 7] + sol[nrow(sol), 8] - 50000) < 50)
+stopifnot(abs(tail(base$H_S + base$H_I, 1) - 50000) < 50)
 
 pc <- c(params, list(gamma_B = 2.5, k_trans = 0.01, mu_B = 0.005, B_star = 1, k_sigmoid = 5))
-check("charge", ode(c(rep(1000, 3), 50, 10, 49000, 1000, 0), times, modele_avec_charge, pc))
+check("charge", resoudre_edo(modele_avec_charge, c(rep(1000, n), 50, 10, 49000, 1000, 0), pc, 20, "charge"))
 
 pm <- c(params, list(beta_1 = 0.0005, beta_2 = 0.0007, beta_3 = 0.001,
-                    rho_1 = 0.0025, rho_2 = 0.0035, rho_3 = 0.005))
-check("markov", ode(c(rep(1000, 3), 50, 10, 40000, 8000, 1800, 200), times, modele_markov, pm))
+                     rho_1 = 0.0025, rho_2 = 0.0035, rho_3 = 0.005))
+check("markov", resoudre_edo(modele_markov, c(rep(1000, n), 50, 10, 40000, 8000, 1800, 200), pm, 20, "markov"))
 
 pi_ <- c(params, list(t0_intervention = 5 * 365, tau_intervention = 2 * 365, reduction_r0 = 0.4,
                       reduction_beta = 0.4, augmentation_muF = 0.5))
-check("intervention", ode(c(rep(1000, 3), 50, 10, 49000, 1000), times, modele_intervention, pi_))
+check("intervention", resoudre_edo(modele_intervention, c(rep(1000, n), 50, 10, 49000, 1000), pi_, 20, "intervention"))
 
-# Spatial : la masse du compartiment E doit être conservée lors des transferts inter-bassins
-ps <- c(params, list(n_bassins = 3, parcelles_to_bassin = c(1, 2, 3), w_transfer = 0.05))
-ps$mu_E <- 0; ps$kappa <- 0; ps$delta <- rep(0, 3)
-sol_s <- ode(c(rep(1000, 3), rep(0, 3), rep(0, 3), 49000, 1000), times, modele_spatialise, ps)
-masse <- rowSums(sol_s[, 2:7])  # C1..C3 + E1..E3
-stopifnot(abs(masse[nrow(sol_s)] - 3000) < 1e-3 * 3000)
+# Spatial : la masse (parcelles + bassins) est conservée quand il n'y a ni dégradation ni élimination
+ps <- params_defaut(3, delta = 0, r0 = 0.01, mu_E = 0, kappa = 0,
+                    n_bassins = 3, parcelles_to_bassin = c(1, 2, 3), w_transfer = 0.05)
+sp <- resoudre_edo(modele_spatialise, c(rep(1000, 3), rep(0, 3), rep(0, 3), 49000, 1000), ps, 20,
+                   "spatial", n_bassins = 3)
+masse <- rowSums(sp[, c(paste0("C", 1:3), paste0("E", 1:3))])
+stopifnot(abs(tail(masse, 1) - 3000) < 1e-3 * 3000)
 cat("OK  spatialisé (masse conservée)\n")

@@ -1,229 +1,15 @@
 # Application Shiny - Modélisation de l'exposition humaine au chlordécone
 # Auteur: Geovany Batista Polo Laguerre
 # Date: 2026-01-23
+#
+# Les modèles ODE, la simulation et les graphiques sont dans le dossier R/
+# (chargé automatiquement par Shiny) : models.R, plots.R, simulation.R.
 
 library(shiny)
 library(deSolve)
 library(ggplot2)
 library(gridExtra)
 library(shinydashboard)
-library(DT)
-
-# =============================================================================
-# FONCTIONS DE MODÉLISATION
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# 1. MODÈLE DE BASE (CC1)
-# -----------------------------------------------------------------------------
-
-modele_base <- function(t, y, params) {
-  with(as.list(c(y, params)), {
-    # Extraction des variables
-    C <- y[1:n_parcelles]
-    E <- y[n_parcelles + 1]
-    F_res <- y[n_parcelles + 2]
-    H_S <- y[n_parcelles + 3]
-    H_I <- y[n_parcelles + 4]
-    
-    # Forçage pluviométrique
-    R_t <- R_moy * (1 + A_saison * sin(2 * pi * t / T_periode))
-    
-    # Fonction d'amplification pluviométrique
-    g_R <- 1 + alpha * R_t / (R0_sat + R_t)
-    
-    # Fonction d'exposition
-    lambda_F <- ifelse(F_res <= F_max, beta * F_res, beta * F_max)
-    
-    # Équations différentielles
-    dC <- -delta * C - r0 * g_R * C
-    dE <- sum(r0 * g_R * C) - mu_E * E - kappa * E
-    dF <- kappa * E - mu_F * F_res
-    dH_S <- Lambda_H - lambda_F * H_S - d_H * H_S + rho * H_I
-    dH_I <- lambda_F * H_S - d_H * H_I - rho * H_I
-    
-    list(c(dC, dE, dF, dH_S, dH_I))
-  })
-}
-
-# -----------------------------------------------------------------------------
-# 2. MODÈLE AVEC VARIABLE DE CHARGE CORPORELLE B(t)
-# -----------------------------------------------------------------------------
-
-modele_avec_charge <- function(t, y, params) {
-  with(as.list(c(y, params)), {
-    # Extraction des variables
-    C <- y[1:n_parcelles]
-    E <- y[n_parcelles + 1]
-    F_res <- y[n_parcelles + 2]
-    H_S <- y[n_parcelles + 3]
-    H_I <- y[n_parcelles + 4]
-    B <- y[n_parcelles + 5]  # Charge corporelle moyenne
-    
-    # Forçage pluviométrique
-    R_t <- R_moy * (1 + A_saison * sin(2 * pi * t / T_periode))
-    g_R <- 1 + alpha * R_t / (R0_sat + R_t)
-    
-    # Dynamique de la charge corporelle (µg/L), forme du preprint (§9.1) :
-    # dB/dt = γ·F/H − µ_B·B, avec F/H la disponibilité per capita
-    dB <- gamma_B * F_res / (H_S + H_I) - mu_B * B
-    
-    # Transition probabiliste basée sur B
-    p_I <- 1 / (1 + exp(-k_sigmoid * (B - B_star)))
-    
-    # Fonction d'exposition
-    lambda_F <- ifelse(F_res <= F_max, beta * F_res, beta * F_max)
-    
-    # Équations différentielles
-    dC <- -delta * C - r0 * g_R * C
-    dE <- sum(r0 * g_R * C) - mu_E * E - kappa * E
-    dF <- kappa * E - mu_F * F_res
-    
-    # Transitions basées sur la charge corporelle
-    flux_S_to_I <- H_S * p_I * k_trans  # Transition graduelle
-    flux_I_to_S <- H_I * (1 - p_I) * k_trans
-    
-    dH_S <- Lambda_H - lambda_F * H_S - d_H * H_S + flux_I_to_S - flux_S_to_I
-    dH_I <- lambda_F * H_S - d_H * H_I + flux_S_to_I - flux_I_to_S
-    
-    list(c(dC, dE, dF, dH_S, dH_I, dB))
-  })
-}
-
-# -----------------------------------------------------------------------------
-# 3. MODÈLE SPATIALISÉ (plusieurs bassins versants)
-# -----------------------------------------------------------------------------
-
-modele_spatialise <- function(t, y, params) {
-  with(as.list(c(y, params)), {
-    # n_parcelles parcelles, n_bassins bassins versants
-    C <- y[1:n_parcelles]
-    E <- y[(n_parcelles + 1):(n_parcelles + n_bassins)]
-    F_res <- y[(n_parcelles + n_bassins + 1):(n_parcelles + 2*n_bassins)]
-    H_S <- y[n_parcelles + 2*n_bassins + 1]
-    H_I <- y[n_parcelles + 2*n_bassins + 2]
-    
-    # Forçage pluviométrique
-    R_t <- R_moy * (1 + A_saison * sin(2 * pi * t / T_periode))
-    g_R <- 1 + alpha * R_t / (R0_sat + R_t)
-    
-    # Dynamique des parcelles
-    dC <- -delta * C - r0 * g_R * C
-    
-    # Dynamique des bassins versants
-    dE <- numeric(n_bassins)
-    for (j in 1:n_bassins) {
-      # Flux depuis les parcelles du bassin j
-      parcelles_bassin <- which(parcelles_to_bassin == j)
-      flux_entrant <- sum(r0[parcelles_bassin] * g_R * C[parcelles_bassin])
-
-      # Apports et pertes locales (accumulés, sans écraser les transferts)
-      dE[j] <- dE[j] + flux_entrant - mu_E * E[j] - kappa * E[j]
-
-      # Transfert vers bassin aval (simplifié: bassin j -> bassin j+1)
-      if (j < n_bassins) {
-        dE[j] <- dE[j] - w_transfer * E[j]
-        dE[j + 1] <- dE[j + 1] + w_transfer * E[j]
-      }
-    }
-    
-    # Dynamique des ressources alimentaires (une par bassin)
-    dF <- kappa * E - mu_F * F_res
-    
-    # Exposition humaine (agrégée sur tous les bassins)
-    F_total <- sum(F_res)
-    lambda_F <- ifelse(F_total <= F_max, beta * F_total, beta * F_max)
-    
-    dH_S <- Lambda_H - lambda_F * H_S - d_H * H_S + rho * H_I
-    dH_I <- lambda_F * H_S - d_H * H_I - rho * H_I
-    
-    list(c(dC, dE, dF, dH_S, dH_I))
-  })
-}
-
-# -----------------------------------------------------------------------------
-# 4. MODÈLE AVEC CHAÎNE DE MARKOV (4 classes de charge)
-# -----------------------------------------------------------------------------
-
-modele_markov <- function(t, y, params) {
-  with(as.list(c(y, params)), {
-    # Extraction des variables
-    C <- y[1:n_parcelles]
-    E <- y[n_parcelles + 1]
-    F_res <- y[n_parcelles + 2]
-    H1 <- y[n_parcelles + 3]  # Classe 1: charge nulle
-    H2 <- y[n_parcelles + 4]  # Classe 2: charge faible
-    H3 <- y[n_parcelles + 5]  # Classe 3: charge modérée
-    H4 <- y[n_parcelles + 6]  # Classe 4: charge élevée
-    
-    # Forçage pluviométrique
-    R_t <- R_moy * (1 + A_saison * sin(2 * pi * t / T_periode))
-    g_R <- 1 + alpha * R_t / (R0_sat + R_t)
-    
-    # Équations environnementales
-    dC <- -delta * C - r0 * g_R * C
-    dE <- sum(r0 * g_R * C) - mu_E * E - kappa * E
-    dF <- kappa * E - mu_F * F_res
-    
-    # Taux de transition dépendant de F
-    q12 <- beta_1 * F_res  # Classe 1 -> 2
-    q23 <- beta_2 * F_res  # Classe 2 -> 3
-    q34 <- beta_3 * F_res  # Classe 3 -> 4
-    
-    # Taux de régression (dépuration)
-    # Taux de régression ρ_i : paramètres libres (rho_1, rho_2, rho_3), cf. preprint §10.3.2
-
-    # Population totale
-    H_total <- H1 + H2 + H3 + H4
-    
-    # Dynamique markovienne
-    dH1 <- Lambda_H - q12 * H1 - d_H * H1 + rho_1 * H2
-    dH2 <- q12 * H1 - (q23 + rho_1) * H2 - d_H * H2 + rho_2 * H3
-    dH3 <- q23 * H2 - (q34 + rho_2) * H3 - d_H * H3 + rho_3 * H4
-    dH4 <- q34 * H3 - (rho_3 + d_H) * H4
-    
-    list(c(dC, dE, dF, dH1, dH2, dH3, dH4))
-  })
-}
-
-# -----------------------------------------------------------------------------
-# 5. MODÈLE AVEC INTERVENTION (réduction progressive des paramètres)
-# -----------------------------------------------------------------------------
-
-modele_intervention <- function(t, y, params) {
-  with(as.list(c(y, params)), {
-    # Fonction sigmoïde pour intervention progressive
-    phi_t <- 0.5 * (1 + tanh((t - t0_intervention) / tau_intervention))
-    
-    # Paramètres modifiés par l'intervention
-    r0_eff <- r0 * (1 - reduction_r0 * phi_t)
-    beta_eff <- beta * (1 - reduction_beta * phi_t)
-    mu_F_eff <- mu_F * (1 + augmentation_muF * phi_t)  # renouvellement forcé de la ressource
-
-    # Extraction des variables
-    C <- y[1:n_parcelles]
-    E <- y[n_parcelles + 1]
-    F_res <- y[n_parcelles + 2]
-    H_S <- y[n_parcelles + 3]
-    H_I <- y[n_parcelles + 4]
-    
-    # Forçage pluviométrique
-    R_t <- R_moy * (1 + A_saison * sin(2 * pi * t / T_periode))
-    g_R <- 1 + alpha * R_t / (R0_sat + R_t)
-    
-    # Fonction d'exposition avec paramètre réduit
-    lambda_F <- ifelse(F_res <= F_max, beta_eff * F_res, beta_eff * F_max)
-    
-    # Équations différentielles
-    dC <- -delta * C - r0_eff * g_R * C
-    dE <- sum(r0_eff * g_R * C) - mu_E * E - kappa * E
-    dF <- kappa * E - mu_F_eff * F_res
-    dH_S <- Lambda_H - lambda_F * H_S - d_H * H_S + rho * H_I
-    dH_I <- lambda_F * H_S - d_H * H_I - rho * H_I
-    
-    list(c(dC, dE, dF, dH_S, dH_I))
-  })
-}
 
 # =============================================================================
 # INTERFACE UTILISATEUR
@@ -677,676 +463,184 @@ server <- function(input, output, session) {
     }
     updateSliderInput(session, "base_r0", value = r0_scen())
     updateSliderInput(session, "charge_gamma_B", value = gamma_scen())
-}, ignoreInit = TRUE)
+  }, ignoreInit = TRUE)
+
+  # Nom de fichier horodaté pour les exports CSV
+  nom_export <- function(prefixe) {
+    paste0("simulation_", prefixe, "_", format(Sys.time(), "%Y-%m-%d_%H-%M-%S"), ".csv")
+  }
 
   # ---------------------------------------------------------------------------
   # SIMULATION MODÈLE DE BASE
   # ---------------------------------------------------------------------------
-  
+
   base_results <- eventReactive(input$base_simulate, {
-    # Paramètres
-    params <- list(
-      n_parcelles = input$base_n_parcelles,
-      delta = rep(input$base_delta, input$base_n_parcelles),
-      r0 = rep(input$base_r0, input$base_n_parcelles),
-      alpha = input$base_alpha,
-      R0_sat = 50,
-      R_moy = 6,
-      A_saison = 0.5,
-      T_periode = 365,
-      mu_E = input$base_mu_E,
-      kappa = input$base_kappa,
-      mu_F = input$base_mu_F,
-      Lambda_H = input$base_H0 / (70 * 365),  # équilibre démographique : H0 * d_H
-      d_H = 1 / (70 * 365),
-      rho = input$base_rho,
-      beta = input$base_beta,
-      F_max = 100
+    n <- input$base_n_parcelles
+    params <- params_defaut(
+      n, delta = input$base_delta, r0 = input$base_r0, H0 = input$base_H0,
+      alpha = input$base_alpha, mu_E = input$base_mu_E, kappa = input$base_kappa,
+      mu_F = input$base_mu_F, rho = input$base_rho, beta = input$base_beta
     )
-    
-    # Conditions initiales
-    C0 <- rep(input$base_C0, input$base_n_parcelles)
-    E0 <- 50
-    F0 <- 10
-    H_S0 <- input$base_H0 * 0.98
-    H_I0 <- input$base_H0 * 0.02
-    
-    y0 <- c(C0, E0, F0, H_S0, H_I0)
-    
-    # Temps
-    times <- seq(0, input$base_duree * 365, by = 1)
-    
-    # Résolution
-    withProgress(message = 'Simulation en cours...', value = 0, {
-      solution <- ode(y = y0, times = times, func = modele_base, parms = params)
+    y0 <- c(rep(input$base_C0, n), 50, 10, input$base_H0 * 0.98, input$base_H0 * 0.02)
+
+    withProgress(message = "Simulation en cours...", value = 0, {
+      df <- resoudre_edo(modele_base, y0, params, input$base_duree, "base")
       incProgress(1)
     })
-    
-    # Formatage
-    sol_df <- as.data.frame(solution)
-    colnames(sol_df) <- c("time", paste0("C", 1:input$base_n_parcelles), "E", "F", "H_S", "H_I")
-    sol_df$time_years <- sol_df$time / 365
-    sol_df$H_total <- sol_df$H_S + sol_df$H_I
-    sol_df$prevalence <- sol_df$H_I / sol_df$H_total * 100
-    
-    return(sol_df)
+    ajouter_prevalence(df)
   })
-  
+
   output$base_plot <- renderPlot({
     req(base_results())
-    df <- base_results()
-    
-    p1 <- ggplot(df) +
-      geom_line(aes(x = time_years, y = C1, color = "Parcelle 1"), linewidth = 1) +
-      scale_y_log10() +
-      labs(x = "Temps (années)", y = "Stock (kg, log)", title = "Contamination parcellaire") +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-    # Préparer données pour environnement
-    df_env <- data.frame(
-      time_years = df$time_years,
-      Environnement = df$E,
-      Ressource = df$F
-    )
-    df_env_long <- reshape2::melt(df_env, id.vars = "time_years",
-                                  variable.name = "Type", value.name = "Stock")
-    
-    p2 <- ggplot(df_env_long, aes(x = time_years, y = Stock, color = Type)) +
-      geom_line(linewidth = 1.2) +
-      labs(x = "Temps (années)", y = "Stock (kg)", title = "Environnement et ressource") +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-    # Préparer données pour populations
-    df_pop <- data.frame(
-      time_years = df$time_years,
-      "Charge élevée" = df$H_I,
-      "Faible charge" = df$H_S,
-      check.names = FALSE
-    )
-    df_pop_long <- reshape2::melt(df_pop, id.vars = "time_years",
-                                  variable.name = "Type", value.name = "Population")
-    
-    p3 <- ggplot(df_pop_long, aes(x = time_years, y = Population, color = Type)) +
-      geom_line(linewidth = 1.2) +
-      labs(x = "Temps (années)", y = "Population", title = "Dynamique des populations") +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-    p4 <- ggplot(df, aes(x = time_years, y = prevalence)) +
-      geom_line(linewidth = 1.3, color = "darkred") +
-      labs(x = "Temps (années)", y = "Prévalence (%)", title = "Prévalence charge élevée") +
-      theme_minimal(base_size = 13)
-    
-    grid.arrange(p1, p2, p3, p4, ncol = 2)
+    grid.arrange(grobs = plots_base(base_results()), ncol = 2)
   })
-  
+
   output$base_download <- downloadHandler(
-    filename = function() {
-      paste0("simulation_base_", format(Sys.time(), "%Y-%m-%d_%H-%M-%S"), ".csv")
-    },
-    content = function(file) {
-      write.csv(base_results(), file, row.names = FALSE)
-    }
+    filename = function() nom_export("base"),
+    content = function(file) write.csv(base_results(), file, row.names = FALSE)
   )
-  
+
   # ---------------------------------------------------------------------------
   # SIMULATION AVEC CHARGE B(t)
   # ---------------------------------------------------------------------------
-  
+
   charge_results <- eventReactive(input$charge_simulate, {
-    params <- list(
-      n_parcelles = input$charge_n_parcelles,
-      delta = rep(input$charge_delta, input$charge_n_parcelles),
-      r0 = rep(r0_scen(), input$charge_n_parcelles),
-      alpha = 0.8,
-      R0_sat = 50,
-      R_moy = 6,
-      A_saison = 0.5,
-      T_periode = 365,
-      mu_E = 0.05,
-      kappa = input$charge_kappa,
-      mu_F = 0.02,
-      Lambda_H = 50000 / (70 * 365),  # équilibre démographique : H0 * d_H
-      d_H = 1 / (70 * 365),
-      rho = 0.005,
-      beta = input$charge_beta,
-      F_max = 100,
-      gamma_B = input$charge_gamma_B,
-      k_trans = input$charge_k_trans,
-      mu_B = input$charge_mu_B,
-      B_star = input$charge_B_star,
-      k_sigmoid = input$charge_k_sigmoid
+    n <- input$charge_n_parcelles
+    params <- params_defaut(
+      n, delta = input$charge_delta, r0 = r0_scen(),
+      kappa = input$charge_kappa, beta = input$charge_beta,
+      gamma_B = input$charge_gamma_B, k_trans = input$charge_k_trans,
+      mu_B = input$charge_mu_B, B_star = input$charge_B_star, k_sigmoid = input$charge_k_sigmoid
     )
-    
-    C0 <- rep(1000, input$charge_n_parcelles)
-    y0 <- c(C0, 50, 10, 49000, 1000, 0)  # + B0 = 0
-    times <- seq(0, input$charge_duree * 365, by = 1)
-    
-    withProgress(message = 'Simulation en cours...', value = 0, {
-      solution <- ode(y = y0, times = times, func = modele_avec_charge, parms = params)
+    y0 <- c(rep(1000, n), 50, 10, 49000, 1000, 0)  # + B0 = 0
+
+    withProgress(message = "Simulation en cours...", value = 0, {
+      df <- resoudre_edo(modele_avec_charge, y0, params, input$charge_duree, "charge")
       incProgress(1)
     })
-    
-    sol_df <- as.data.frame(solution)
-    colnames(sol_df) <- c("time", paste0("C", 1:input$charge_n_parcelles), "E", "F", "H_S", "H_I", "B")
-    sol_df$time_years <- sol_df$time / 365
-    sol_df$H_total <- sol_df$H_S + sol_df$H_I
-    sol_df$prevalence <- sol_df$H_I / sol_df$H_total * 100
-    
-    return(sol_df)
+    ajouter_prevalence(df)
   })
-  
+
   output$charge_plot <- renderPlot({
     req(charge_results())
-    df <- charge_results()
-    
-    p1 <- ggplot(df, aes(x = time_years, y = B)) +
-      geom_line(linewidth = 1.3, color = "purple") +
-      geom_hline(yintercept = input$charge_B_star, linetype = "dashed", color = "red") +
-      labs(x = "Temps (années)", y = "Charge B (µg/L)", title = "Charge corporelle moyenne") +
-      theme_minimal(base_size = 13)
-    
-    # Préparer données pour environnement
-    df_env <- data.frame(
-      time_years = df$time_years,
-      Environnement = df$E,
-      Ressource = df$F
-    )
-    df_env_long <- reshape2::melt(df_env, id.vars = "time_years",
-                                  variable.name = "Type", value.name = "Stock")
-    
-    p2 <- ggplot(df_env_long, aes(x = time_years, y = Stock, color = Type)) +
-      geom_line(linewidth = 1.2) +
-      labs(x = "Temps (années)", y = "Stock (kg)", title = "Environnement et ressource") +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-    # Préparer données pour populations
-    df_pop <- data.frame(
-      time_years = df$time_years,
-      "Charge élevée" = df$H_I,
-      "Faible charge" = df$H_S,
-      check.names = FALSE
-    )
-    df_pop_long <- reshape2::melt(df_pop, id.vars = "time_years",
-                                  variable.name = "Type", value.name = "Population")
-    
-    p3 <- ggplot(df_pop_long, aes(x = time_years, y = Population, color = Type)) +
-      geom_line(linewidth = 1.2) +
-      labs(x = "Temps (années)", y = "Population", title = "Dynamique des populations") +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-    p4 <- ggplot(df, aes(x = time_years, y = prevalence)) +
-      geom_line(linewidth = 1.3, color = "darkred") +
-      labs(x = "Temps (années)", y = "Prévalence (%)", title = "Prévalence charge élevée") +
-      theme_minimal(base_size = 13)
-    
-    grid.arrange(p1, p2, p3, p4, ncol = 2)
+    grid.arrange(grobs = plots_charge(charge_results(), input$charge_B_star), ncol = 2)
   })
-  
+
   output$charge_download <- downloadHandler(
-    filename = function() { paste0("simulation_charge_", format(Sys.time(), "%Y-%m-%d_%H-%M-%S"), ".csv") },
-    content = function(file) { write.csv(charge_results(), file, row.names = FALSE) }
+    filename = function() nom_export("charge"),
+    content = function(file) write.csv(charge_results(), file, row.names = FALSE)
   )
-  
+
   # ---------------------------------------------------------------------------
   # SIMULATION SPATIALISÉE
   # ---------------------------------------------------------------------------
-  
+
   spatial_results <- eventReactive(input$spatial_simulate, {
     n_p <- input$spatial_n_parcelles
     n_b <- input$spatial_n_bassins
-    
-    # Attribution parcelles -> bassins (distribution simple)
-    parcelles_to_bassin <- rep(1:n_b, length.out = n_p)
-    
-    params <- list(
-      n_parcelles = n_p,
+
+    params <- params_defaut(
+      n_p, delta = input$spatial_delta, r0 = r0_scen(),
+      mu_E = input$spatial_mu_E, kappa = input$spatial_kappa,
       n_bassins = n_b,
-      parcelles_to_bassin = parcelles_to_bassin,
-      delta = rep(input$spatial_delta, n_p),
-      r0 = rep(r0_scen(), n_p),
-      alpha = 0.8,
-      R0_sat = 50,
-      R_moy = 6,
-      A_saison = 0.5,
-      T_periode = 365,
-      mu_E = input$spatial_mu_E,
-      kappa = input$spatial_kappa,
-      mu_F = 0.02,
-      Lambda_H = 50000 / (70 * 365),  # équilibre démographique : H0 * d_H
-      d_H = 1 / (70 * 365),
-      rho = 0.005,
-      beta = 0.001,
-      F_max = 100,
+      parcelles_to_bassin = rep(1:n_b, length.out = n_p),  # attribution simple parcelles -> bassins
       w_transfer = input$spatial_w_transfer
     )
-    
-    C0 <- rep(1000, n_p)
-    E0 <- rep(50, n_b)
-    F0 <- rep(10, n_b)
-    H_S0 <- 49000
-    H_I0 <- 1000
-    
-    y0 <- c(C0, E0, F0, H_S0, H_I0)
-    times <- seq(0, input$spatial_duree * 365, by = 1)
-    
-    withProgress(message = 'Simulation spatiale...', value = 0, {
-      solution <- ode(y = y0, times = times, func = modele_spatialise, parms = params)
+    y0 <- c(rep(1000, n_p), rep(50, n_b), rep(10, n_b), 49000, 1000)
+
+    withProgress(message = "Simulation spatiale...", value = 0, {
+      df <- resoudre_edo(modele_spatialise, y0, params, input$spatial_duree, "spatial", n_bassins = n_b)
       incProgress(1)
     })
-    
-    sol_df <- as.data.frame(solution)
-    col_names <- c("time", paste0("C", 1:n_p), paste0("E", 1:n_b), paste0("F", 1:n_b), "H_S", "H_I")
-    colnames(sol_df) <- col_names
-    sol_df$time_years <- sol_df$time / 365
-    sol_df$H_total <- sol_df$H_S + sol_df$H_I
-    sol_df$prevalence <- sol_df$H_I / sol_df$H_total * 100
-    
-    return(sol_df)
+    ajouter_prevalence(df)
   })
-  
+
   output$spatial_plot <- renderPlot({
     req(spatial_results())
-    df <- spatial_results()
-    n_b <- input$spatial_n_bassins
-    
-    # Agrégation environnement par bassin
-    df_E <- df[, c("time_years", paste0("E", 1:n_b))]
-    df_E_long <- reshape2::melt(df_E, id.vars = "time_years", variable.name = "Bassin", value.name = "E")
-    
-    p1 <- ggplot(df_E_long, aes(x = time_years, y = E, color = Bassin)) +
-      geom_line(linewidth = 1.1) +
-      labs(x = "Temps (années)", y = "Stock environnement (kg)", title = "Contamination par bassin versant") +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom")
-    
-    # Agrégation ressources par bassin
-    df_F <- df[, c("time_years", paste0("F", 1:n_b))]
-    df_F_long <- reshape2::melt(df_F, id.vars = "time_years", variable.name = "Bassin", value.name = "F")
-    
-    p2 <- ggplot(df_F_long, aes(x = time_years, y = F, color = Bassin)) +
-      geom_line(linewidth = 1.1) +
-      labs(x = "Temps (années)", y = "Ressource (kg)", title = "Ressources alimentaires par bassin") +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom")
-    
-    # Préparer données pour populations
-    df_pop_spatial <- data.frame(
-      time_years = df$time_years,
-      "Charge élevée" = df$H_I,
-      "Faible charge" = df$H_S,
-      check.names = FALSE
-    )
-    df_pop_spatial_long <- reshape2::melt(df_pop_spatial, id.vars = "time_years",
-                                          variable.name = "Type", value.name = "Population")
-    
-    p3 <- ggplot(df_pop_spatial_long, aes(x = time_years, y = Population, color = Type)) +
-      geom_line(linewidth = 1.2) +
-      labs(x = "Temps (années)", y = "Population", title = "Dynamique des populations (agrégée)") +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-    p4 <- ggplot(df, aes(x = time_years, y = prevalence)) +
-      geom_line(linewidth = 1.3, color = "darkblue") +
-      labs(x = "Temps (années)", y = "Prévalence (%)", title = "Prévalence charge élevée") +
-      theme_minimal(base_size = 13)
-    
-    grid.arrange(p1, p2, p3, p4, ncol = 2)
+    grid.arrange(grobs = plots_spatial(spatial_results(), input$spatial_n_bassins), ncol = 2)
   })
-  
+
   output$spatial_download <- downloadHandler(
-    filename = function() { paste0("simulation_spatial_", format(Sys.time(), "%Y-%m-%d_%H-%M-%S"), ".csv") },
-    content = function(file) { write.csv(spatial_results(), file, row.names = FALSE) }
+    filename = function() nom_export("spatial"),
+    content = function(file) write.csv(spatial_results(), file, row.names = FALSE)
   )
-  
+
   # ---------------------------------------------------------------------------
   # SIMULATION CHAÎNE DE MARKOV
   # ---------------------------------------------------------------------------
-  
+
   markov_results <- eventReactive(input$markov_simulate, {
-    params <- list(
-      n_parcelles = input$markov_n_parcelles,
-      delta = rep(input$markov_delta, input$markov_n_parcelles),
-      r0 = rep(r0_scen(), input$markov_n_parcelles),
-      alpha = 0.8,
-      R0_sat = 50,
-      R_moy = 6,
-      A_saison = 0.5,
-      T_periode = 365,
-      mu_E = 0.05,
-      kappa = input$markov_kappa,
-      mu_F = 0.02,
-      Lambda_H = 50000 / (70 * 365),  # équilibre démographique : H0 * d_H
-      d_H = 1 / (70 * 365),
-      rho_1 = input$markov_rho_1,
-      rho_2 = input$markov_rho_2,
-      rho_3 = input$markov_rho_3,
-      beta_1 = input$markov_beta_1,
-      beta_2 = input$markov_beta_2,
-      beta_3 = input$markov_beta_3,
-      F_max = 100
+    n <- input$markov_n_parcelles
+    params <- params_defaut(
+      n, delta = input$markov_delta, r0 = r0_scen(), kappa = input$markov_kappa,
+      beta_1 = input$markov_beta_1, beta_2 = input$markov_beta_2, beta_3 = input$markov_beta_3,
+      rho_1 = input$markov_rho_1, rho_2 = input$markov_rho_2, rho_3 = input$markov_rho_3
     )
-    
-    C0 <- rep(1000, input$markov_n_parcelles)
-    y0 <- c(C0, 50, 10, 40000, 8000, 1800, 200)  # H1, H2, H3, H4
-    times <- seq(0, input$markov_duree * 365, by = 1)
-    
-    withProgress(message = 'Simulation Markov...', value = 0, {
-      solution <- ode(y = y0, times = times, func = modele_markov, parms = params)
+    y0 <- c(rep(1000, n), 50, 10, 40000, 8000, 1800, 200)  # H1, H2, H3, H4
+
+    withProgress(message = "Simulation Markov...", value = 0, {
+      df <- resoudre_edo(modele_markov, y0, params, input$markov_duree, "markov")
       incProgress(1)
     })
-    
-    sol_df <- as.data.frame(solution)
-    colnames(sol_df) <- c("time", paste0("C", 1:input$markov_n_parcelles), "E", "F", "H1", "H2", "H3", "H4")
-    sol_df$time_years <- sol_df$time / 365
-    sol_df$H_total <- sol_df$H1 + sol_df$H2 + sol_df$H3 + sol_df$H4
-    sol_df$prevalence_elevee <- (sol_df$H4 / sol_df$H_total) * 100
-    sol_df$prevalence_moderee <- ((sol_df$H3 + sol_df$H4) / sol_df$H_total) * 100
-    
-    return(sol_df)
+    ajouter_prevalence(df)
   })
-  
+
   output$markov_plot <- renderPlot({
     req(markov_results())
-    df <- markov_results()
-    
-    # Préparer données pour graphique empilé
-    df_stack <- data.frame(
-      time_years = df$time_years,
-      H1 = df$H1,
-      H2 = df$H2,
-      H3 = df$H3,
-      H4 = df$H4
-    )
-    
-    df_long <- reshape2::melt(df_stack, id.vars = "time_years", 
-                              variable.name = "Classe", value.name = "Population")
-    df_long$Classe <- factor(df_long$Classe, 
-                             levels = c("H4", "H3", "H2", "H1"),
-                             labels = c("Classe 4 (élevée)", "Classe 3 (modérée)", 
-                                       "Classe 2 (faible)", "Classe 1 (nulle)"))
-    
-    p1 <- ggplot(df_long, aes(x = time_years, y = Population, fill = Classe)) +
-      geom_area(position = "stack", alpha = 0.7) +
-      labs(x = "Temps (années)", y = "Population", title = "Distribution par classes de charge") +
-      scale_fill_manual(values = c("red", "orange", "yellow", "lightgreen")) +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-    # Préparer données pour graphique environnement
-    df_env <- data.frame(
-      time_years = df$time_years,
-      Environnement = df$E,
-      Ressource = df$F
-    )
-    df_env_long <- reshape2::melt(df_env, id.vars = "time_years", 
-                                  variable.name = "Type", value.name = "Stock")
-    
-    p2 <- ggplot(df_env_long, aes(x = time_years, y = Stock, color = Type)) +
-      geom_line(linewidth = 1.2) +
-      labs(x = "Temps (années)", y = "Stock (kg)", title = "Environnement et ressource") +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-    # Préparer données pour graphique prévalence
-    df_prev <- data.frame(
-      time_years = df$time_years,
-      "Charge élevée (H4)" = df$prevalence_elevee,
-      "Charge modérée+ (H3+H4)" = df$prevalence_moderee,
-      check.names = FALSE
-    )
-    df_prev_long <- reshape2::melt(df_prev, id.vars = "time_years",
-                                   variable.name = "Niveau", value.name = "Prevalence")
-    
-    p3 <- ggplot(df_prev_long, aes(x = time_years, y = Prevalence, color = Niveau)) +
-      geom_line(linewidth = 1.2) +
-      labs(x = "Temps (années)", y = "Prévalence (%)", title = "Prévalence par niveau de charge") +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-    # Proportions finales
-    df_final <- tail(df, 1)
-    props <- data.frame(
-      Classe = c("H1 (nulle)", "H2 (faible)", "H3 (modérée)", "H4 (élevée)"),
-      Proportion = c(df_final$H1, df_final$H2, df_final$H3, df_final$H4) / df_final$H_total * 100
-    )
-    
-    p4 <- ggplot(props, aes(x = Classe, y = Proportion, fill = Classe)) +
-      geom_bar(stat = "identity") +
-      scale_fill_manual(values = c("lightgreen", "yellow", "orange", "red")) +
-      labs(x = "", y = "Proportion (%)", title = "Distribution finale (t = fin)") +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "none", axis.text.x = element_text(angle = 15, hjust = 1))
-    
-    grid.arrange(p1, p2, p3, p4, ncol = 2)
+    grid.arrange(grobs = plots_markov(markov_results()), ncol = 2)
   })
-  
+
   output$markov_download <- downloadHandler(
-    filename = function() { paste0("simulation_markov_", format(Sys.time(), "%Y-%m-%d_%H-%M-%S"), ".csv") },
-    content = function(file) { write.csv(markov_results(), file, row.names = FALSE) }
+    filename = function() nom_export("markov"),
+    content = function(file) write.csv(markov_results(), file, row.names = FALSE)
   )
-  
+
   # ---------------------------------------------------------------------------
   # SIMULATION AVEC INTERVENTION
   # ---------------------------------------------------------------------------
-  
+
   interv_results <- eventReactive(input$interv_simulate, {
-    params <- list(
-      n_parcelles = input$interv_n_parcelles,
-      delta = rep(input$interv_delta, input$interv_n_parcelles),
-      r0 = rep(r0_scen(), input$interv_n_parcelles),
-      alpha = 0.8,
-      R0_sat = 50,
-      R_moy = 6,
-      A_saison = 0.5,
-      T_periode = 365,
-      mu_E = 0.05,
-      kappa = input$interv_kappa,
-      mu_F = 0.02,
-      Lambda_H = 50000 / (70 * 365),  # équilibre démographique : H0 * d_H
-      d_H = 1 / (70 * 365),
-      rho = 0.005,
-      beta = 0.001,
-      F_max = 100,
+    n <- input$interv_n_parcelles
+    params <- params_defaut(
+      n, delta = input$interv_delta, r0 = r0_scen(), kappa = input$interv_kappa,
       t0_intervention = input$interv_t0 * 365,
       tau_intervention = input$interv_tau * 365,
       reduction_r0 = input$interv_reduction_r0 / 100,
       reduction_beta = input$interv_reduction_beta / 100,
       augmentation_muF = input$interv_aug_muF / 100
     )
+    prev0 <- input$interv_prev0 / 100
+    y0 <- c(rep(1000, n), 50, 10, 50000 * (1 - prev0), 50000 * prev0)
 
-    # Scénario de référence : mêmes paramètres, sans intervention
-    params_ref <- params
-    params_ref$reduction_r0 <- 0
-    params_ref$reduction_beta <- 0
-    params_ref$augmentation_muF <- 0
-
-    C0 <- rep(1000, input$interv_n_parcelles)
-    y0 <- c(C0, 50, 10, 50000 * (1 - input$interv_prev0 / 100), 50000 * input$interv_prev0 / 100)
-    times <- seq(0, input$interv_duree * 365, by = 1)
-    
-    withProgress(message = 'Simulation intervention...', value = 0, {
-      solution <- ode(y = y0, times = times, func = modele_intervention, parms = params)
-      solution_ref <- ode(y = y0, times = times, func = modele_intervention, parms = params_ref)
+    withProgress(message = "Simulation intervention...", value = 0, {
+      df <- simuler_intervention(params, y0, input$interv_duree)
       incProgress(1)
     })
-
-    col_names <- c("time", paste0("C", 1:input$interv_n_parcelles), "E", "F", "H_S", "H_I")
-    sol_df <- as.data.frame(solution)
-    colnames(sol_df) <- col_names
-    ref_df <- as.data.frame(solution_ref)
-    colnames(ref_df) <- col_names
-    sol_df$E_ref <- ref_df$E
-    sol_df$F_ref <- ref_df$F
-    sol_df$H_I_ref <- ref_df$H_I
-    sol_df$prevalence_ref <- ref_df$H_I / (ref_df$H_S + ref_df$H_I) * 100
-sol_df$time_years <- sol_df$time / 365
-    sol_df$H_total <- sol_df$H_S + sol_df$H_I
-    sol_df$prevalence <- sol_df$H_I / sol_df$H_total * 100
-    
-    # Indicateur d'intervention
-    sol_df$intervention <- 0.5 * (1 + tanh((sol_df$time - params$t0_intervention) / params$tau_intervention))
-    
-    return(sol_df)
+    df
   })
-  
+
   output$interv_plot <- renderPlot({
     req(interv_results())
-    df <- interv_results()
-    
-    # Ligne verticale pour début intervention
-    t0_line <- input$interv_t0
-    
-    n_fin <- nrow(df)
-    sous_titre <- sprintf("Finale : %.1f %% avec vs %.1f %% sans intervention",
-                          df$prevalence[n_fin], df$prevalence_ref[n_fin])
-    if (max(df$time_years) >= 5) {
-      i5 <- which.min(abs(df$time_years - 5))
-      red5 <- if (df$prevalence_ref[i5] > 0) 100 * (1 - df$prevalence[i5] / df$prevalence_ref[i5]) else NA_real_
-      sous_titre <- paste0(sous_titre, sprintf("\nÀ 5 ans : %.1f %% vs %.1f %% (réduction relative : %.0f %%)",
-                                               df$prevalence[i5], df$prevalence_ref[i5], red5))
-    }
-
-    p1 <- ggplot(df, aes(x = time_years)) +
-      geom_rect(xmin = t0_line, xmax = max(df$time_years), ymin = -Inf, ymax = Inf,
-                fill = "lightblue", alpha = 0.01) +
-      geom_vline(xintercept = t0_line, linetype = "dashed", color = "blue", linewidth = 1) +
-      geom_line(aes(y = prevalence_ref, color = "Sans intervention"), linewidth = 1.1, linetype = "dashed") +
-      geom_line(aes(y = prevalence, color = "Avec intervention"), linewidth = 1.3) +
-      annotate("text", x = t0_line + 1, y = max(c(df$prevalence, df$prevalence_ref)) * 0.9,
-               label = "Début intervention", hjust = 0, color = "blue") +
-      scale_color_manual(values = c("Avec intervention" = "darkred", "Sans intervention" = "grey40")) +
-      labs(x = "Temps (années)", y = "Prévalence (%)", title = "Impact sur la prévalence",
-           subtitle = sous_titre) +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom", legend.title = element_blank())
-
-    p2 <- ggplot(df, aes(x = time_years)) +
-      geom_rect(xmin = t0_line, xmax = max(df$time_years), ymin = -Inf, ymax = Inf,
-                fill = "lightblue", alpha = 0.01) +
-      geom_vline(xintercept = t0_line, linetype = "dashed", color = "blue", linewidth = 1) +
-      geom_line(aes(y = F_ref, color = "Sans intervention"), linewidth = 1.1, linetype = "dashed") +
-      geom_line(aes(y = F, color = "Avec intervention"), linewidth = 1.2) +
-      scale_color_manual(values = c("Avec intervention" = "darkorange", "Sans intervention" = "grey40")) +
-      labs(x = "Temps (années)", y = "Ressource (kg)", title = "Impact sur la ressource alimentaire") +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom", legend.title = element_blank())
-
-    p3 <- ggplot(df, aes(x = time_years)) +
-      geom_rect(xmin = t0_line, xmax = max(df$time_years), ymin = -Inf, ymax = Inf, 
-                fill = "lightblue", alpha = 0.01) +
-      geom_vline(xintercept = t0_line, linetype = "dashed", color = "blue", linewidth = 1)
-    
-    # Préparer données pour populations
-    df_pop_interv <- data.frame(
-      time_years = df$time_years,
-      "Charge élevée" = df$H_I,
-      "Faible charge" = df$H_S,
-      check.names = FALSE
-    )
-    df_pop_interv_long <- reshape2::melt(df_pop_interv, id.vars = "time_years",
-                                         variable.name = "Type", value.name = "Population")
-    
-    p3 <- p3 + 
-      geom_line(data = df_pop_interv_long, 
-                aes(x = time_years, y = Population, color = Type), linewidth = 1.2) +
-      labs(x = "Temps (années)", y = "Population", title = "Dynamique des populations") +
-      theme_minimal(base_size = 13) +
-      theme(legend.position = "bottom", legend.title = element_blank())
-    
-    p4 <- ggplot(df, aes(x = time_years, y = intervention * 100)) +
-      geom_area(fill = "steelblue", alpha = 0.5) +
-      labs(x = "Temps (années)", y = "Niveau d'intervention (%)", 
-           title = "Progression de l'intervention") +
-      theme_minimal(base_size = 13)
-    
-    grid.arrange(p1, p2, p3, p4, ncol = 2)
+    grid.arrange(grobs = plots_intervention(interv_results(), input$interv_t0), ncol = 2)
   })
-  
+
   output$interv_download <- downloadHandler(
-    filename = function() { paste0(
-  "simulation_intervention_",
-  format(Sys.time(), "%Y-%m-%d_%H-%M-%S"),
-  ".csv"
-) },
-    content = function(file) { write.csv(interv_results(), file, row.names = FALSE) }
+    filename = function() nom_export("intervention"),
+    content = function(file) write.csv(interv_results(), file, row.names = FALSE)
   )
-  
+
   # ---------------------------------------------------------------------------
   # COMPARAISON DES MODÈLES
   # ---------------------------------------------------------------------------
-  
+
   comp_results <- eventReactive(input$comp_simulate, {
-    # Paramètres communs
-    duree <- input$comp_duree * 365
-    C0_val <- input$comp_C0
-    H0_val <- input$comp_H0
-    
-    times <- seq(0, duree, by = 1)
-    
-    # 1. Modèle de base
-    params_base <- list(n_parcelles = 3, delta = rep(delta_scen(), 3), r0 = rep(r0_scen(), 3),
-                        alpha = 0.8, R0_sat = 50, R_moy = 6, A_saison = 0.5, T_periode = 365,
-                        mu_E = 0.05, kappa = 0.03, mu_F = 0.02, Lambda_H = H0_val / (70 * 365), 
-                        d_H = 1/(70*365), rho = 0.005, beta = 0.001, F_max = 100)
-    y0_base <- c(rep(C0_val, 3), 50, 10, H0_val*0.98, H0_val*0.02)
-    
-    sol_base <- ode(y = y0_base, times = times, func = modele_base, parms = params_base)
-    df_base <- as.data.frame(sol_base)
-    colnames(df_base) <- c("time", paste0("C", 1:3), "E", "F", "H_S", "H_I")
-    df_base$model <- "Base"
-    df_base$prevalence <- df_base$H_I / (df_base$H_S + df_base$H_I) * 100
-    
-    # 2. Modèle avec charge
-    params_charge <- c(params_base, list(gamma_B = gamma_scen(), k_trans= 0.01, mu_B = 0.005, B_star = 1, k_sigmoid = 5))
-    y0_charge <- c(rep(C0_val, 3), 50, 10, H0_val*0.98, H0_val*0.02, 0)
-    
-    sol_charge <- ode(y = y0_charge, times = times, func = modele_avec_charge, parms = params_charge)
-    df_charge <- as.data.frame(sol_charge)
-    colnames(df_charge) <- c("time", paste0("C", 1:3), "E", "F", "H_S", "H_I", "B")
-    df_charge$model <- "Charge B(t)"
-    df_charge$prevalence <- df_charge$H_I / (df_charge$H_S + df_charge$H_I) * 100
-    
-    # 3. Modèle Markov (somme H3 + H4 comme "exposés")
-    params_markov <- c(params_base, list(beta_1 = 0.0005, beta_2 = 0.0007, beta_3 = 0.001,
-                                            rho_1 = 0.0025, rho_2 = 0.0035, rho_3 = 0.005))
-    y0_markov <- c(rep(C0_val, 3), 50, 10, H0_val*0.8, H0_val*0.16, H0_val*0.03, H0_val*0.01)
-    
-    sol_markov <- ode(y = y0_markov, times = times, func = modele_markov, parms = params_markov)
-    df_markov <- as.data.frame(sol_markov)
-    colnames(df_markov) <- c("time", paste0("C", 1:3), "E", "F", "H1", "H2", "H3", "H4")
-    df_markov$model <- "Markov"
-    df_markov$prevalence <- (df_markov$H3 + df_markov$H4) /
-      (df_markov$H1 + df_markov$H2 + df_markov$H3 + df_markov$H4) * 100
-    
-    # Compilation
-    comparison <- data.frame(
-      time_years = df_base$time / 365,
-      Base = df_base$prevalence,
-      Charge = df_charge$prevalence,
-      Markov = df_markov$prevalence
-    )
-    
-    return(comparison)
+    simuler_comparaison(input$comp_duree, input$comp_C0, input$comp_H0,
+                        delta = delta_scen(), r0 = r0_scen(), gamma_B = gamma_scen())
   })
-  
+
   output$comp_plot <- renderPlot({
     req(comp_results())
-    df <- comp_results()
-    
-    df_long <- reshape2::melt(df, id.vars = "time_years", variable.name = "Modèle", value.name = "Prévalence")
-    
-    ggplot(df_long, aes(x = time_years, y = Prévalence, color = Modèle)) +
-      geom_line(linewidth = 1.4) +
-      labs(x = "Temps (années)", y = "Prévalence de charge élevée (%)", 
-           title = "Comparaison des modèles : prévalence de l'exposition") +
-      scale_color_manual(values = c("Base" = "darkred", "Charge" = "purple", "Markov" = "darkblue")) +
-      theme_minimal(base_size = 15) +
-      theme(legend.position = "bottom", legend.title = element_blank())
+    plot_comparaison(comp_results())
   })
 }
 

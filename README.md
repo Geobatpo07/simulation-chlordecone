@@ -77,7 +77,6 @@ The model integrates:
 | shinydashboard | Dashboard UI |
 | deSolve | ODE solver |
 | ggplot2 | Visualization |
-| DT | Interactive tables |
 | reshape2 | Data transformation |
 | renv | Reproducible environment |
 
@@ -101,7 +100,6 @@ install.packages(c(
   "deSolve",
   "ggplot2",
   "gridExtra",
-  "DT",
   "reshape2"
 ))
 ```
@@ -293,10 +291,18 @@ Simulates exposure reduction strategies:
 ```
 simulation-chlordecone/
 │
-├── app/                # Shiny application
-├── data/               # Parameters
-├── results/            # Outputs
+├── app/
+│   ├── app.R           # Interface (UI) and server
+│   └── R/              # Loaded automatically by Shiny
+│       ├── models.R        # ODE models (no Shiny dependency)
+│       ├── simulation.R    # Parameters, solver, prevalence, comparison, intervention
+│       └── plots.R         # ggplot2 figures
+├── tests/
+│   ├── smoke.R             # Models: finite solutions, demography, mass conservation
+│   └── test_simulation.R   # Column names, prevalence, comparison, intervention
 ├── docs/
+│   └── dette.md        # Flaws of the preprint, to correct in a later version
+├── .github/workflows/  # CI/CD (tests, then deployment to shinyapps.io)
 ├── renv.lock
 ├── README.md
 └── LICENSE
@@ -400,8 +406,8 @@ With an initial prevalence of 20 % and the default intervention ($-40\ \%$ on $r
 
 [`.github/workflows/deploy-shinyapps.yml`](.github/workflows/deploy-shinyapps.yml) runs on every push to `main` that touches `app/`, `renv.lock` or `tests/`:
 
-1. **test**: restores the `renv` library and runs `Rscript tests/smoke.R` (loads the models, checks finite solutions, demographic equilibrium and mass conservation in the spatial model). Also runs on pull requests.
-2. **deploy**: if the tests pass, deploys `app/app.R` to shinyapps.io with `rsconnect` (app name `chlordecone-simulation-app`).
+1. **test**: restores the `renv` library and runs `Rscript tests/smoke.R` (finite solutions, demographic equilibrium, mass conservation in the spatial model) and `Rscript tests/test_simulation.R` (column names, prevalence, model comparison, intervention reference). Also runs on pull requests.
+2. **deploy**: if the tests pass, deploys `app/app.R` and `app/R/` to shinyapps.io with `rsconnect` (app name `chlordecone-simulation-app`).
 
 Required repository secrets (Settings → Secrets and variables → Actions): `SHINYAPPS_NAME`, `SHINYAPPS_TOKEN`, `SHINYAPPS_SECRET` (from shinyapps.io → Account → Tokens). A manual run is available from the Actions tab.
 

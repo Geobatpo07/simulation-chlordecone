@@ -20,7 +20,7 @@ OR install manually:
 
 ```r
 install.packages(c("shiny", "shinydashboard", "deSolve",
-                   "ggplot2", "gridExtra", "DT", "reshape2"))
+                   "ggplot2", "gridExtra", "reshape2"))
 ```
 ### Step 3: Run the Application
 
