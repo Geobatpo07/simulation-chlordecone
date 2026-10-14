@@ -159,7 +159,7 @@ source("launch_app.R")
 - Rainfall forcing ($R$)
 
 #### Adjustable Parameters
-- Number of parcels
+- Number of parcels (1 to 7, as in the preprint)
 - Initial stocks
 - Degradation rates ($\delta$)
 - Runoff rate ($r_0$)
@@ -225,7 +225,7 @@ Discrete exposure levels:
 
 #### Features
 - Progression via exposure ($\beta_i\cdot F$)
-- Regression via depuration ($\rho_i$)
+- Regression via depuration ($\rho_1, \rho_2, \rho_3$, free parameters as in preprint §10.3.2; defaults 0.0025, 0.0035, 0.005 day⁻¹)
 - Population distribution across classes
 
 #### Benefits
@@ -246,6 +246,7 @@ Simulates exposure reduction strategies:
 
 #### Outputs
 - Comparison with a reference scenario without intervention (same parameters)
+- Relative prevalence reduction at 5 years, to compare with the objective of preprint §8.2.1 (initial $H_I/H$ of 20 %, adjustable)
 - Impact on prevalence
 - Environmental recovery curves
 
@@ -389,7 +390,9 @@ The sidebar selector sets $\delta$ and $r_0$ in every tab:
 | Preprint (default) | 0.001 | 0.01 | Soil emptied within months; transient exposure peak, then elimination (as in the preprint's theorems) |
 | Long persistence | 5e-5 | 4e-5 | Soil half-life of about 15 years; exposure persists for decades |
 
-Neither $r_0$ nor the rainfall parameters are given in the preprint, so the long persistence values are illustrative. With the long persistence scenario, $B(t)$ stays below $B^*$ unless $\gamma$ is raised.
+Neither $r_0$ nor the rainfall parameters are given in the preprint, so the long persistence values are illustrative. The selector also sets $\gamma$ (2.5 for the preprint scenario, 60 for long persistence), so that $B(t)$ approaches $B^*$ at the exposure level of each scenario.
+
+With an initial prevalence of 20 % and the default intervention ($-40\ \%$ on $r_0$ and $\beta$, immediate start), the long persistence scenario with 3 parcels gives about 13 % at 5 years versus 29 % without intervention (relative reduction of about 54 %), consistent with the objective of §8.2.1 (halving exposure in 5 years). The preprint scenario does not reproduce it: exposure saturates at $F_{max}$ and the contamination disappears within a few years, whatever the intervention.
 
 ---
 
@@ -407,6 +410,7 @@ Required repository secrets (Settings → Secrets and variables → Actions): `S
 ## Version History
 
 ### Unreleased
+- Fidelity to the preprint: Markov $\rho_i$ as free parameters, 7 parcels, intervention starting from an initial prevalence of 20 %, $\gamma$ tied to the scenario
 - Fix model comparison (prevalence computed from the wrong columns)
 - Fix inter-basin transfer in the spatial model (mass was lost)
 - Demographic equilibrium: $\Lambda_H = H_0 d_H$

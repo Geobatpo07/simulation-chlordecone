@@ -171,10 +171,8 @@ modele_markov <- function(t, y, params) {
     q34 <- beta_3 * F_res  # Classe 3 -> 4
     
     # Taux de régression (dépuration)
-    rho_1 <- rho * 0.5
-    rho_2 <- rho * 0.7
-    rho_3 <- rho
-    
+    # Taux de régression ρ_i : paramètres libres (rho_1, rho_2, rho_3), cf. preprint §10.3.2
+
     # Population totale
     H_total <- H1 + H2 + H3 + H4
     
@@ -325,7 +323,7 @@ ui <- dashboardPage(
             solidHeader = TRUE,
             
             h4("Parcelles"),
-            sliderInput("base_n_parcelles", "Nombre de parcelles", 1, 5, 3, step = 1),
+            sliderInput("base_n_parcelles", "Nombre de parcelles", 1, 7, 3, step = 1),
             sliderInput("base_C0", "Stock initial (kg)", 100, 2000, 1000, step = 100),
             sliderInput("base_delta", "Taux dégradation (j⁻¹)", 0.00001, 0.01, 0.001, step = 0.00001),
             sliderInput("base_r0", "Ruissellement base (j⁻¹)", 0.00001, 0.05, 0.01, step = 0.00001),
@@ -371,13 +369,13 @@ ui <- dashboardPage(
             solidHeader = TRUE,
             
             h4("Paramètres de base (hérités)"),
-            sliderInput("charge_n_parcelles", "Nombre de parcelles", 1, 5, 3, step = 1),
+            sliderInput("charge_n_parcelles", "Nombre de parcelles", 1, 7, 3, step = 1),
             sliderInput("charge_delta", "Taux dégradation (j⁻¹)", 0.00001, 0.01, 0.001, step = 0.00001),
             sliderInput("charge_kappa", "Transfert E→F (j⁻¹)", 0.01, 0.1, 0.03, step = 0.01),
             sliderInput("charge_beta", "Taux exposition (j⁻¹·kg⁻¹)", 0.0001, 0.01, 0.001, step = 0.0001),
             
             h4("Paramètres spécifiques B(t)"),
-            sliderInput("charge_gamma_B", "Coeff. absorption γ (µg·L⁻¹·kg⁻¹·pers.)", 0.1, 10, 2.5, step = 0.1),
+            sliderInput("charge_gamma_B", "Coeff. absorption γ (µg·L⁻¹·kg⁻¹·pers.)", 0.1, 100, 2.5, step = 0.1),
             sliderInput("charge_k_trans", "Vitesse de transition S↔I (j⁻¹)", 0.001, 0.05, 0.01, step = 0.001),
             sliderInput("charge_mu_B", "Élimination corporelle µ_B (j⁻¹)", 0.001, 0.02, 0.005, step = 0.001),
             sliderInput("charge_B_star", "Seuil charge B* (µg/L)", 0.5, 2, 1, step = 0.1),
@@ -412,7 +410,7 @@ ui <- dashboardPage(
             solidHeader = TRUE,
             
             h4("Structure spatiale"),
-            sliderInput("spatial_n_parcelles", "Nombre de parcelles", 2, 6, 4, step = 1),
+            sliderInput("spatial_n_parcelles", "Nombre de parcelles", 2, 7, 4, step = 1),
             sliderInput("spatial_n_bassins", "Nombre de bassins versants", 2, 4, 3, step = 1),
             sliderInput("spatial_w_transfer", "Taux transfert inter-bassins (j⁻¹)", 0, 0.1, 0.02, step = 0.01),
             
@@ -451,7 +449,7 @@ ui <- dashboardPage(
             solidHeader = TRUE,
             
             h4("Paramètres environnementaux"),
-            sliderInput("markov_n_parcelles", "Nombre de parcelles", 1, 5, 3, step = 1),
+            sliderInput("markov_n_parcelles", "Nombre de parcelles", 1, 7, 3, step = 1),
             sliderInput("markov_delta", "Taux dégradation (j⁻¹)", 0.00001, 0.01, 0.001, step = 0.00001),
             sliderInput("markov_kappa", "Transfert E→F (j⁻¹)", 0.01, 0.1, 0.03, step = 0.01),
             
@@ -461,7 +459,9 @@ ui <- dashboardPage(
             sliderInput("markov_beta_3", "β₃: Classe 3→4 (j⁻¹·kg⁻¹)", 0.0001, 0.01, 0.001, step = 0.0001),
             
             h4("Taux de dépuration"),
-            sliderInput("markov_rho", "Taux base ρ (j⁻¹)", 0.001, 0.02, 0.005, step = 0.001),
+            sliderInput("markov_rho_1", "ρ₁: Classe 2→1 (j⁻¹)", 0.0005, 0.02, 0.0025, step = 0.0005),
+            sliderInput("markov_rho_2", "ρ₂: Classe 3→2 (j⁻¹)", 0.0005, 0.02, 0.0035, step = 0.0005),
+            sliderInput("markov_rho_3", "ρ₃: Classe 4→3 (j⁻¹)", 0.0005, 0.02, 0.005, step = 0.0005),
             
             sliderInput("markov_duree", "Durée (années)", 1, 50, 20, step = 1),
             actionButton("markov_simulate", "Simuler", icon = icon("play"), class = "btn-danger"),
@@ -492,14 +492,15 @@ ui <- dashboardPage(
             solidHeader = TRUE,
             
             h4("Politique d'intervention"),
-            sliderInput("interv_t0", "Début intervention (années)", 0, 20, 5, step = 0.5),
-            sliderInput("interv_tau", "Durée transition (années)", 0.5, 5, 2, step = 0.5),
+            sliderInput("interv_t0", "Début intervention (années)", 0, 20, 0, step = 0.5),
+            sliderInput("interv_tau", "Durée transition (années)", 0.5, 5, 1, step = 0.5),
             sliderInput("interv_reduction_r0", "Réduction ruissellement (%)", 0, 80, 40, step = 5),
             sliderInput("interv_reduction_beta", "Réduction exposition (%)", 0, 80, 40, step = 5),
             sliderInput("interv_aug_muF", "Augmentation renouvellement ressource µF (%)", 0, 200, 0, step = 10),
 
             h4("Paramètres de base"),
-            sliderInput("interv_n_parcelles", "Nombre de parcelles", 1, 5, 3, step = 1),
+            sliderInput("interv_n_parcelles", "Nombre de parcelles", 1, 7, 3, step = 1),
+            sliderInput("interv_prev0", "Prévalence initiale H_I/H (%)", 0, 50, 20, step = 1),
             sliderInput("interv_delta", "Taux dégradation (j⁻¹)", 0.00001, 0.01, 0.001, step = 0.00001),
             sliderInput("interv_kappa", "Transfert E→F (j⁻¹)", 0.01, 0.1, 0.03, step = 0.01),
             
@@ -667,13 +668,16 @@ server <- function(input, output, session) {
 
   delta_scen <- reactive(if (identical(input$scenario_env, "persist")) 5e-5 else 0.001)
   r0_scen    <- reactive(if (identical(input$scenario_env, "persist")) 4e-5 else 0.01)
+  # γ ajusté pour que B approche B* au niveau de F de chaque scénario (F ~ 100 en pic transitoire, ~ 4 en régime persistant)
+  gamma_scen <- reactive(if (identical(input$scenario_env, "persist")) 60 else 2.5)
 
   observeEvent(input$scenario_env, {
     for (id in c("base_delta", "charge_delta", "spatial_delta", "markov_delta", "interv_delta")) {
       updateSliderInput(session, id, value = delta_scen())
     }
     updateSliderInput(session, "base_r0", value = r0_scen())
-  }, ignoreInit = TRUE)
+    updateSliderInput(session, "charge_gamma_B", value = gamma_scen())
+}, ignoreInit = TRUE)
 
   # ---------------------------------------------------------------------------
   # SIMULATION MODÈLE DE BASE
@@ -1018,7 +1022,9 @@ server <- function(input, output, session) {
       mu_F = 0.02,
       Lambda_H = 50000 / (70 * 365),  # équilibre démographique : H0 * d_H
       d_H = 1 / (70 * 365),
-      rho = input$markov_rho,
+      rho_1 = input$markov_rho_1,
+      rho_2 = input$markov_rho_2,
+      rho_3 = input$markov_rho_3,
       beta_1 = input$markov_beta_1,
       beta_2 = input$markov_beta_2,
       beta_3 = input$markov_beta_3,
@@ -1160,7 +1166,7 @@ server <- function(input, output, session) {
     params_ref$augmentation_muF <- 0
 
     C0 <- rep(1000, input$interv_n_parcelles)
-    y0 <- c(C0, 50, 10, 49000, 1000)
+    y0 <- c(C0, 50, 10, 50000 * (1 - input$interv_prev0 / 100), 50000 * input$interv_prev0 / 100)
     times <- seq(0, input$interv_duree * 365, by = 1)
     
     withProgress(message = 'Simulation intervention...', value = 0, {
@@ -1196,6 +1202,14 @@ sol_df$time_years <- sol_df$time / 365
     t0_line <- input$interv_t0
     
     n_fin <- nrow(df)
+    sous_titre <- sprintf("Finale : %.1f %% avec vs %.1f %% sans intervention",
+                          df$prevalence[n_fin], df$prevalence_ref[n_fin])
+    if (max(df$time_years) >= 5) {
+      i5 <- which.min(abs(df$time_years - 5))
+      red5 <- if (df$prevalence_ref[i5] > 0) 100 * (1 - df$prevalence[i5] / df$prevalence_ref[i5]) else NA_real_
+      sous_titre <- paste0(sous_titre, sprintf("\nÀ 5 ans : %.1f %% vs %.1f %% (réduction relative : %.0f %%)",
+                                               df$prevalence[i5], df$prevalence_ref[i5], red5))
+    }
 
     p1 <- ggplot(df, aes(x = time_years)) +
       geom_rect(xmin = t0_line, xmax = max(df$time_years), ymin = -Inf, ymax = Inf,
@@ -1207,8 +1221,7 @@ sol_df$time_years <- sol_df$time / 365
                label = "Début intervention", hjust = 0, color = "blue") +
       scale_color_manual(values = c("Avec intervention" = "darkred", "Sans intervention" = "grey40")) +
       labs(x = "Temps (années)", y = "Prévalence (%)", title = "Impact sur la prévalence",
-           subtitle = sprintf("Finale : %.1f %% avec vs %.1f %% sans intervention",
-                              df$prevalence[n_fin], df$prevalence_ref[n_fin])) +
+           subtitle = sous_titre) +
       theme_minimal(base_size = 13) +
       theme(legend.position = "bottom", legend.title = element_blank())
 
@@ -1289,7 +1302,7 @@ sol_df$time_years <- sol_df$time / 365
     df_base$prevalence <- df_base$H_I / (df_base$H_S + df_base$H_I) * 100
     
     # 2. Modèle avec charge
-    params_charge <- c(params_base, list(gamma_B = 2.5, k_trans= 0.01, mu_B = 0.005, B_star = 1, k_sigmoid = 5))
+    params_charge <- c(params_base, list(gamma_B = gamma_scen(), k_trans= 0.01, mu_B = 0.005, B_star = 1, k_sigmoid = 5))
     y0_charge <- c(rep(C0_val, 3), 50, 10, H0_val*0.98, H0_val*0.02, 0)
     
     sol_charge <- ode(y = y0_charge, times = times, func = modele_avec_charge, parms = params_charge)
@@ -1299,7 +1312,8 @@ sol_df$time_years <- sol_df$time / 365
     df_charge$prevalence <- df_charge$H_I / (df_charge$H_S + df_charge$H_I) * 100
     
     # 3. Modèle Markov (somme H3 + H4 comme "exposés")
-    params_markov <- c(params_base, list(beta_1 = 0.0005, beta_2 = 0.0007, beta_3 = 0.001))
+    params_markov <- c(params_base, list(beta_1 = 0.0005, beta_2 = 0.0007, beta_3 = 0.001,
+                                            rho_1 = 0.0025, rho_2 = 0.0035, rho_3 = 0.005))
     y0_markov <- c(rep(C0_val, 3), 50, 10, H0_val*0.8, H0_val*0.16, H0_val*0.03, H0_val*0.01)
     
     sol_markov <- ode(y = y0_markov, times = times, func = modele_markov, parms = params_markov)

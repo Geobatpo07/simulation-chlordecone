@@ -31,7 +31,8 @@ stopifnot(abs(sol[nrow(sol), 7] + sol[nrow(sol), 8] - 50000) < 50)
 pc <- c(params, list(gamma_B = 2.5, k_trans = 0.01, mu_B = 0.005, B_star = 1, k_sigmoid = 5))
 check("charge", ode(c(rep(1000, 3), 50, 10, 49000, 1000, 0), times, modele_avec_charge, pc))
 
-pm <- c(params, list(beta_1 = 0.0005, beta_2 = 0.0007, beta_3 = 0.001))
+pm <- c(params, list(beta_1 = 0.0005, beta_2 = 0.0007, beta_3 = 0.001,
+                    rho_1 = 0.0025, rho_2 = 0.0035, rho_3 = 0.005))
 check("markov", ode(c(rep(1000, 3), 50, 10, 40000, 8000, 1800, 200), times, modele_markov, pm))
 
 pi_ <- c(params, list(t0_intervention = 5 * 365, tau_intervention = 2 * 365, reduction_r0 = 0.4,
